@@ -1,0 +1,114 @@
+:root {
+  font-family: Inter, system-ui, Avenir, Helvetica, Arial, sans-serif;
+  line-height: 1.5;
+  font-weight: 400;
+  color-scheme: light dark;
+  color: rgba(255, 255, 255, 0.87);
+  background-color: #242424;
+  font-synthesis: none;
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+body {
+  margin: 0;
+  display: flex;
+  place-items: center;
+  min-width: 320px;
+  min-height: 100vh;
+}
+
+#app {
+  max-width: 1280px;
+  margin: 0 auto;
+  padding: 2rem;
+  text-align: center;
+}
+
+.controls {
+  display: flex;
+  gap: 1rem;
+  margin-bottom: 1rem;
+}
+
+.drop-zone {
+  flex: 1;
+  border: 2px dashed #444;
+  border-radius: 8px;
+  padding: 2rem;
+  cursor: pointer;
+  transition: background-color 0.2s, border-color 0.2s;
+}
+
+.drop-zone:hover {
+    border-color: #646cff;
+}
+
+.drop-zone.drag-over {
+  background-color: #333;
+  border-color: #888;
+}
+
+/* ### NOWY STYL DLA KONTROLKI PRĘDKOŚCI ### */
+.speed-control {
+  margin: 1rem 0;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  gap: 1rem;
+}
+#speed-slider {
+  width: 200px;
+}
+/* ########################################## */
+
+#status {
+  margin-bottom: 1rem;
+  font-style: italic;
+  color: #aaa;
+  min-height: 1.5em;
+}
+
+#canvas-container {
+  width: 800px;
+  height: 600px;
+  border: 1px solid #444;
+  background-color: #1a1a1a;
+  margin-top: 1rem;
+}
+
+#animations-container {
+    margin-top: 1rem;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+    justify-content: center;
+}
+
+#animations-container button {
+    background-color: #3a3a3a;
+    border: 1px solid #555;
+    color: #eee;
+    padding: 0.5rem 1rem;
+    border-radius: 4px;
+    cursor: pointer;
+    transition: background-color 0.2s;
+}
+
+#animations-container button:hover {
+    background-color: #4a4a4a;
+}
+
+#animations-container button.active {
+    background-color: #646cff;
+    border-color: #646cff;
+}
+
+.auto-rotate-control {
+    margin: 1rem 0;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    gap: 0.5rem;
+}

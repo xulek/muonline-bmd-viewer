@@ -1,0 +1,69 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8" />
+  <link rel="icon" type="image/svg+xml" href="/vite.svg" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>MU Online BMD Viewer (Three.js)</title>
+</head>
+
+<body>
+  <div id="app">
+    <h1>MU Online BMD Viewer (Three.js)</h1>
+
+    <!-- ZMIANA: Tylko jedna strefa ładowania na początku -->
+    <div class="controls">
+      <div class="drop-zone" id="bmd-drop-zone">
+        <p>Przeciągnij plik <strong>.bmd</strong> tutaj lub kliknij, aby wybrać</p>
+        <input type="file" id="bmd-file-input" accept=".bmd" style="display: none;" />
+      </div>
+    </div>
+
+    <!-- ZMIANA: Kontener na dynamiczne kontrolki do ładowania tekstur -->
+    <div id="texture-controls" style="display: none;">
+      <h3>Wymagane tekstury:</h3>
+      <p id="texture-info-text"></p>
+      <div class="controls">
+        <div class="drop-zone" id="texture-drop-zone">
+          <p>Przeciągnij plik tekstury <strong>(.jpg, .tga, .png, .ozt)</strong> tutaj</p>
+          <input type="file" id="texture-file-input" accept=".jpg,.jpeg,.png,.tga,.ozt,.ozj" style="display: none;" />
+        </div>
+      </div>
+    </div>
+
+    <div class="speed-control">
+      <label id="speed-label" for="speed-slider">Prędkość: 1.00x</label>
+      <input type="range" id="speed-slider" min="0.1" max="2.0" step="0.1" value="0.2">
+    </div>
+
+    <div class="scale-control">
+      <label id="scale-label" for="scale-slider">Skala: 1.00x</label>
+      <input type="range" id="scale-slider" min="0.1" max="5.0" step="0.1" value="1.0">
+    </div>
+
+    <div class="auto-rotate-control">
+      <input type="checkbox" id="auto-rotate-checkbox" checked>
+      <label for="auto-rotate-checkbox">Obrót automatyczny</label>
+    </div>
+
+    <div id="status">Gotowy. Wybierz plik BMD, aby rozpocząć.</div>
+
+    <div id="diagnostics-panel">
+      <h3>Informacje diagnostyczne:</h3>
+      <p>Animacje: <span id="diag-animations-count">0</span></p>
+      <p>Akcje (klipy): <span id="diag-actions-count">0</span></p>
+      <p>Klatki w akcji: <span id="diag-animation-keys">0</span></p>
+      <p>Aktualna klatka: <span id="diag-current-frame">N/A</span></p>      
+      <p>Kości: <span id="diag-bones-count">0</span></p>
+      <p>Meshe: <span id="diag-meshes-count">0</span></p>
+      <p>FPS: <span id="diag-fps">0</span></p>
+    </div>
+
+    <div id="canvas-container"></div>
+    <div id="animations-container"></div>
+  </div>
+  <script type="module" src="/src/main.ts"></script>
+</body>
+
+</html>
