@@ -38,6 +38,13 @@ class App {
     private frameCount = 0;
     private fps = 0;
 
+    // --- Blokada klatek ---
+    private lockFrameCheckbox!: HTMLInputElement;
+    private lockFrameInput!:    HTMLInputElement;
+    private lockCurrentBtn!:    HTMLButtonElement;
+    private isFrameLocked = false;
+    private lockedFrame   = 0;
+
     private readonly bmdLoader = new BMDLoader();
 
     constructor() {
@@ -123,6 +130,31 @@ class App {
         this.diagFpsEl             = document.getElementById('diag-fps')!;        
 
         this.updateDiagnosticInfo(0); // Ustaw początkowe wartości
+
+        // ---------- BLOKADA KLATEK ----------
+        this.lockFrameCheckbox = document.getElementById('lock-frame-checkbox') as HTMLInputElement;
+        this.lockFrameInput    = document.getElementById('lock-frame-input')    as HTMLInputElement;
+        this.lockCurrentBtn    = document.getElementById('lock-current-btn')    as HTMLButtonElement;
+
+        this.lockFrameCheckbox.addEventListener('change', () => {
+            this.isFrameLocked = this.lockFrameCheckbox.checked;
+            if (this.isFrameLocked) this.applyLockedFrame();
+        });
+
+        this.lockFrameInput.addEventListener('input', () => {
+            this.lockedFrame = parseInt(this.lockFrameInput.value, 10) || 0;
+            if (this.isFrameLocked) this.applyLockedFrame();
+        });
+
+        this.lockCurrentBtn.addEventListener('click', () => {
+            // pobierz bieżącą klatkę z diagnostyki
+            const cur = parseInt(this.diagCurrentFrameEl.textContent || '0', 10) || 0;
+            this.lockFrameInput.value = cur.toString();
+            this.lockedFrame = cur;
+            this.lockFrameCheckbox.checked = true;
+            this.isFrameLocked = true;
+            this.applyLockedFrame();
+        });
 
         const setupDropZone = (zone: HTMLElement, input: HTMLInputElement, onFile: (file: File) => void) => {
             zone.addEventListener('click', () => input.click());
@@ -399,6 +431,14 @@ class App {
         if (model.animations.length > 0) {
             (animBox.querySelector('button') as HTMLButtonElement)?.click();
         }
+        // pokaż blokadę tylko, jeśli klip ma klatki
+        const lockBox   = document.getElementById('frame-lock-controls')!;
+        lockBox.style.display =
+            model.animations.length && (model.animations[0] as any).userData?.numAnimationKeys
+                ? 'block' : 'none';
+
+        this.lockFrameCheckbox.checked = false;
+        this.isFrameLocked = false;
         this.updateDiagnosticInfo(); // Aktualizuj po załadowaniu animacji
     }
 
@@ -411,13 +451,37 @@ class App {
             this.loadedGroup.rotation.z += delta * 0.2;
         }
 
-        if (this.mixer) this.mixer.update(delta);
+        if (this.mixer) {
+            if (this.isFrameLocked) {
+                this.applyLockedFrame();   // wymusza pozę i nie przesuwa czasu
+            } else {
+                this.mixer.update(delta);  // normalny przebieg animacji
+            }
+        }
         this.controls.update();
         this.renderer.render(this.scene, this.camera);
 
         // ### NOWE ### Aktualizacja diagnostyki w pętli
         this.updateDiagnosticInfo(time);
     };
+
+    /** Ustaw akcję dokładnie na this.lockedFrame i odśwież pozę */
+    private applyLockedFrame() {
+        if (!this.currentAction) return;
+
+        const clip = this.currentAction.getClip() as THREE.AnimationClip &
+                     { userData?: { numAnimationKeys?: number } };
+
+        const numKeys = clip.userData?.numAnimationKeys ?? 0;
+        if (!numKeys) return;
+
+        // upewnij się, że numer mieści się w zakresie
+        const frame = Math.min(Math.max(this.lockedFrame, 0), numKeys - 1);
+
+        // konwersja klatki na czas (sekundy)
+        this.currentAction.time = frame / numKeys * clip.duration;
+        this.mixer!.update(0);      // odśwież pozę natychmiast
+    }
 
     // ### NOWA METODA ### Aktualizacja informacji diagnostycznych
     private updateDiagnosticInfo(time: DOMHighResTimeStamp = 0) {
@@ -438,7 +502,9 @@ class App {
             if (numKeys > 0) {
                 const localTime  = (this.currentAction.time % clip.duration + clip.duration) % clip.duration;
                 const progress   = localTime / clip.duration;      // od 0 do <1
-                const currentFrame = Math.floor(progress * numKeys); // 0 … numKeys-1
+                const currentFrame = this.isFrameLocked
+                    ? this.lockedFrame
+                    : Math.floor(localTime / clip.duration * numKeys);
                 this.diagCurrentFrameEl.textContent = currentFrame.toString();
             } else {
                 this.diagCurrentFrameEl.textContent = 'N/A';
@@ -484,4 +550,3 @@ class App {
 }
 
 new App();
-''

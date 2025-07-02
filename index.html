@@ -54,10 +54,24 @@
       <p>Animacje: <span id="diag-animations-count">0</span></p>
       <p>Akcje (klipy): <span id="diag-actions-count">0</span></p>
       <p>Klatki w akcji: <span id="diag-animation-keys">0</span></p>
-      <p>Aktualna klatka: <span id="diag-current-frame">N/A</span></p>      
+      <p>Aktualna klatka: <span id="diag-current-frame">N/A</span></p>
       <p>Kości: <span id="diag-bones-count">0</span></p>
       <p>Meshe: <span id="diag-meshes-count">0</span></p>
       <p>FPS: <span id="diag-fps">0</span></p>
+    </div>
+
+    <!-- === BLOKOWANIE ANIMACJI NA KLATCE === -->
+    <div id="frame-lock-controls" style="display:none">
+      <label>
+        <input type="checkbox" id="lock-frame-checkbox">
+        Zablokuj na klatce
+      </label>
+
+      <input type="number" id="lock-frame-input" value="0" min="0" step="1" style="width:60px">
+
+      <button id="lock-current-btn" title="Ustaw na bieżącą klatkę">
+        ⇥ bieżąca
+      </button>
     </div>
 
     <div id="canvas-container"></div>
