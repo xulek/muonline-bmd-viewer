@@ -34,7 +34,7 @@
       <div class="control-section" id="export-controls">
         <h3>💾 Export</h3>
         <button id="export-glb-btn" class="modern-btn animation-btn">Export to GLB</button>
-        <button id="export-textures-btn" disabled>Export textures (PNG)</button>
+        <button id="export-textures-btn" disabled class="modern-btn animation-btn">Export textures (PNG)</button>
       </div>
 
       <!-- Texture loading section -->
@@ -216,11 +216,11 @@
     const textureFileInput = document.getElementById('texture-file-input');
 
     // BMD file handlers
-    bmdDropZone.addEventListener('click', (e) => {
-      if (e.target === bmdFileInput) return;
-      bmdFileInput.click();
-      e.stopPropagation();
-    });
+    // bmdDropZone.addEventListener('click', (e) => {
+    //   if (e.target === bmdFileInput) return;
+    //   bmdFileInput.click();
+    //   e.stopPropagation();
+    // });
     bmdDropZone.addEventListener('dragover', (e) => {
       e.preventDefault();
       bmdDropZone.classList.add('drag-over');
@@ -234,7 +234,7 @@
     });
 
     // Texture file handlers
-    textureDropZone.addEventListener('click', () => textureFileInput.click());
+    // textureDropZone.addEventListener('click', () => textureFileInput.click());
     textureDropZone.addEventListener('dragover', (e) => {
       e.preventDefault();
       textureDropZone.classList.add('drag-over');

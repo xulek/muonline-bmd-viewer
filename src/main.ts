@@ -338,6 +338,7 @@ class App {
             statusEl.textContent = `Loaded: ${group.name} (animations: ${group.animations.length})`;
             this.updateTextureUI();
             this.updateDiagnosticInfo();
+            if (this.exportBtn) this.exportBtn.disabled = false;
 
             // --- skeleton helper ---
             if (skeletonHelper) {
@@ -549,6 +550,7 @@ class App {
                 mat.color.set(0xffffff);
                 mat.needsUpdate = true;
                 applied = true;
+                if (this.exportBtn) this.exportBtn.disabled = false;
                 
                 console.log(`  ✓ Applied "${file.name}" to mesh with texture: "${wantedPath}"`);
             }
