@@ -610,3 +610,8 @@ body::before {
 #brightness-slider {
   width: 200px;
 }
+
+/*EKSPORT*/
+#export-textures-btn {
+  margin-top: .75rem;
+}

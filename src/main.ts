@@ -27,6 +27,7 @@ class App {
     private bmdFile: File | null = null;
     private loadedGroup: THREE.Group | null = null;
     private requiredTextures: string[] = [];
+    private exportBtn!: HTMLButtonElement;        // ← nowy przycisk
     private textureLoader = new THREE.TextureLoader();
 
     // ### NOWE ### Do obrotu
@@ -110,7 +111,8 @@ class App {
         const bmdInput = document.getElementById('bmd-file-input') as HTMLInputElement;
         const texZone = document.getElementById('texture-drop-zone')!;
         const texInput = document.getElementById('texture-file-input') as HTMLInputElement;
-        const statusEl = document.getElementById('status')!;
+        this.exportBtn = document.getElementById('export-textures-btn') as HTMLButtonElement;
+        this.exportBtn.addEventListener('click', () => this.exportTextures());
         
         const speedSlider = document.getElementById('speed-slider') as HTMLInputElement;
         const speedLabel = document.getElementById('speed-label')!;
@@ -125,7 +127,8 @@ class App {
         });
         speedLabel.textContent = `Prędkość: ${parseFloat(speedSlider.value).toFixed(2)}x`;
 
-        statusEl.textContent = 'Oczekiwanie na plik BMD…';
+        const status = document.getElementById('status')!;
+        status.textContent = 'Oczekiwanie na plik BMD…';
 
         this.initScaleSlider();
 
@@ -456,6 +459,7 @@ class App {
             this.currentAction = null;
             document.getElementById('animations-container')!.innerHTML = '';
         }
+        if (this.exportBtn) this.exportBtn.disabled = true;  // ← zablokuj
         this.updateDiagnosticInfo(); // Aktualizuj po wyczyszczeniu sceny
     }
     
@@ -484,8 +488,8 @@ class App {
         return;
         }
     
-        const statusEl = document.getElementById('status')!;
-        statusEl.textContent = `Ładowanie: ${file.name}…`;
+        const status = document.getElementById('status')!;
+        status.textContent = `Ładowanie: ${file.name}…`;
         
         console.log(`=== TEXTURE LOADING: ${file.name} ===`);
         console.log('Required textures:', this.requiredTextures);
@@ -509,6 +513,7 @@ class App {
         tex.colorSpace = THREE.SRGBColorSpace;
         tex.wrapS = tex.wrapT = THREE.RepeatWrapping;
         tex.flipY = false;
+        tex.name  = file.name;                  // ← potrzebne przy zapisie
     
         // POPRAWKA: Lepsze dopasowywanie nazw plików
         let applied = false;
@@ -578,15 +583,53 @@ class App {
             });
         }
     
-        statusEl.textContent = applied
+        status.textContent = applied
             ? `Tekstura „${file.name}" załadowana.`
             : `Nie znaleziono pasującego mesha dla „${file.name}". Sprawdź konsolę.`;
     
         } catch (e) {
         console.error('Texture load error:', e);
-        statusEl.textContent = `Błąd: ${(e as Error).message}`;
+        status.textContent = `Błąd: ${(e as Error).message}`;
         }
     }
+
+    /** Zapisuje wszystkie unikalne mapy materiałów do plików PNG */
+private exportTextures() {
+  if (!this.loadedGroup) return;
+
+  const exported = new Set<THREE.Texture>();
+
+  this.loadedGroup.traverse(obj => {
+    if ((obj as THREE.Mesh).isMesh) {
+      const mat = (obj as THREE.Mesh).material as THREE.MeshPhongMaterial;
+      if (mat.map && !exported.has(mat.map) && (mat.map.image as any)?.width) {
+        const img: HTMLImageElement|HTMLCanvasElement|ImageBitmap = mat.map.image;
+        const cvs = Object.assign(document.createElement('canvas'),
+                                  { width: (img as any).width, height: (img as any).height });
+        cvs.getContext('2d')!.drawImage(img as any, 0, 0);
+
+        cvs.toBlob(blob => {
+          if (!blob) return;
+          const a = document.createElement('a');
+          a.href = URL.createObjectURL(blob);
+          const base = ((mat.map && mat.map.name) ? mat.map.name : 'texture').replace(/\.[^.]+$/, '');
+          a.download = `${base}.png`;
+          a.style.display = 'none';
+          document.body.appendChild(a);
+          a.click();
+          document.body.removeChild(a);
+        }, 'image/png');
+
+        exported.add(mat.map);
+      }
+    }
+  });
+
+  const st = document.getElementById('status')!;
+  st.textContent = exported.size
+      ? `Wyeksportowano ${exported.size} tekstur(y).`
+      : 'Brak załadowanych tekstur do eksportu.';
+}
 
     //----------------------------------------------------------
     // Ustawianie prędkości i animacje (bez większych zmian)
