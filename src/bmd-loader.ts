@@ -11,7 +11,7 @@ import { createLea256EcbDecrypt } from './crypto/lea256';
 import { readStructArray, StructLayout } from './BinaryStruct';
 
 //----------------------------------------------------------
-//  Definicje schematów struktur
+//  Structure Definitions
 //----------------------------------------------------------
 
 // BMDTextureVertex: Node(2) + padding(2) + Position(12) = 16 bytes
@@ -72,10 +72,7 @@ function decryptLea(enc: Uint8Array): Uint8Array {
 //  Helpers – TGA → dataURL
 //----------------------------------------------------------
 export async function convertTgaToDataUrl(tgaBuffer: ArrayBuffer): Promise<string> {
-    // 1️⃣  await the promise
     const tga = await decodeTga(new Uint8Array(tgaBuffer));
-  
-    // 2️⃣  grab data from tga.image
     const { width, height, data } = tga.image;
   
     const canvas = document.createElement('canvas');
@@ -92,7 +89,7 @@ export async function convertTgaToDataUrl(tgaBuffer: ArrayBuffer): Promise<strin
   
 
 //----------------------------------------------------------
-//  Helpers – Kwaterniony
+//  Helpers – Quaternions
 //----------------------------------------------------------
 function bmdAngleToQuaternion(eulerAngles: BMDVector3): THREE.Quaternion {
     const halfX = eulerAngles.x * 0.5;
@@ -115,7 +112,7 @@ function bmdAngleToQuaternion(eulerAngles: BMDVector3): THREE.Quaternion {
 }
 
 //----------------------------------------------------------
-//  Pomocnicze funkcje do bezpiecznego odczytu
+//  Safe Reading Helper Functions
 //----------------------------------------------------------
 function safeReadStruct<T>(view: DataView, layout: StructLayout, offset: number, bufferSize: number, structName: string): { data: T | null, newOffset: number } {
     const structSize = layout.reduce((acc, [, type]) => {
@@ -196,9 +193,6 @@ export class BMDLoader {
             const material = new THREE.MeshPhongMaterial({
                 color: 0xcccccc,
                 side: THREE.DoubleSide,
-                // transparent: true,
-                // alphaTest: 0.1,
-                // premultipliedAlpha: true
             });
 
             const { positions, normals, uvs, skinIndices, skinWeights } = this.extractGeometry(bmdMesh);
@@ -219,7 +213,8 @@ export class BMDLoader {
         bmd.bones.forEach((bmdBone, i) => {
             if (bmdBone.isDummy || !bmdBone.matrixes?.length) return;
           
-            const bind = bmdBone.matrixes[0];          // klatka 0, action 0
+            // frame 0, action 0
+            const bind = bmdBone.matrixes[0];
             const p    = bind.position[0] ?? { x:0,y:0,z:0 };
             const q    = bind.quaternion[0] ?? { x:0,y:0,z:0,w:1 };
           
@@ -242,40 +237,35 @@ export class BMDLoader {
     }
 
     
-    /** Parsuje bufor BMD i zwraca obiekt sceny */
+    /** Parses the BMD buffer and returns a scene object */
     private parse(buffer: ArrayBuffer): BMD {
       console.groupCollapsed('parse()');
       console.log(`Buffer size: ${buffer.byteLength} bytes`);
 
-      /* ── robocza kopia + widok ─────────────────────────── */
       const work = buffer.slice(0);
       const view = new DataView(work);
 
-      /* ── nagłówek pliku ───────────────────────────────── */
       const id = new TextDecoder('ascii').decode(work.slice(0, 3));
       if (id !== 'BMD') throw new Error('Invalid BMD header');
 
       const version = view.getUint8(3);
       console.log(`BMD version: ${version}`);
 
-      /* ── odszyfrowanie v12 / v15 ──────────────────────── */
       let dataOffset = 4;
       if (version === 12 || version === 15) {
         const size = view.getInt32(4, true);
         const enc  = new Uint8Array(work, 8, size);
         const dec  = version === 12 ? decryptFile(enc) : decryptLea(enc);
-        new Uint8Array(work, 8, size).set(dec);          // plaintext na miejscu
-        dataOffset = 8;                                  // header(3)+ver(1)+size(4)
+        new Uint8Array(work, 8, size).set(dec);
+        dataOffset = 8;
         console.log(`Decrypted ${size} B @8`);
       }
 
-      /* ── małe pomocnicze czytniki ─────────────────────── */
       let off = dataOffset;
       const readS16 = () => { const v = view.getInt16 (off, true); off += 2; return v; };
       const readU16 = () => { const v = view.getUint16(off, true); off += 2; return v; };
       const readF32 = () => { const v = view.getFloat32(off, true); off += 4; return v; };
 
-      /* ── nagłówek BMD ─────────────────────────────────── */
       const name        = this.readStringFromDataView(view, off, 32); off += 32;
       const meshCount   = readU16();
       const boneCount   = readU16();
@@ -284,7 +274,6 @@ export class BMDLoader {
 
       const bmd: BMD = { version, name, meshes: [], bones: [], actions: [] };
 
-      /* ── MESHE ─────────────────────────────────────────── */
       for (let m = 0; m < meshCount; m++) {
         console.log(`Reading mesh ${m + 1}/${meshCount} at offset ${off}`);
 
@@ -300,7 +289,7 @@ export class BMDLoader {
           view, BMDTextureVertexLayout, off, numVertices);
         if (!vertsRes) {
             console.error(`Failed to read vertices for mesh ${m}`);
-            continue; // Przejdź do następnego mesha
+            continue;
         }
         off = vertsRes.newOffset;
         const vertices = vertsRes.data.map(v => ({ node:v.node, position:{ x:v.x, y:v.y, z:v.z } }));
@@ -309,7 +298,7 @@ export class BMDLoader {
           view, BMDTextureNormalLayout, off, numNormals);
         if (!normsRes) {
             console.error(`Failed to read normals for mesh ${m}`);
-            continue; // Przejdź do następnego mesha
+            continue;
         }
         off = normsRes.newOffset;
         const normals = normsRes.data.map(n => ({
@@ -321,7 +310,7 @@ export class BMDLoader {
         const texRes = readStructArray<BMDTexCoord>(view, BMDTexCoordLayout, off, numTexCoords);
         if (!texRes) {
             console.error(`Failed to read texCoords for mesh ${m}`);
-            continue; // Przejdź do następnego mesha
+            continue;
         }
         off = texRes.newOffset;
         const texCoords = texRes.data;
@@ -350,13 +339,11 @@ export class BMDLoader {
         });
       }
 
-      /* ── ACTION HEADERS ───────────────────────────────── */
       for (let a = 0; a < actionCount; a++) {
         const numKeys  = readS16();
         const lockPos  = view.getUint8(off) > 0; off += 1;
         bmd.actions.push({ numAnimationKeys:numKeys, lockPositions:lockPos, positions:[] });
 
-        /* jeżeli lockPositions==1: na poziomie akcji jest dodatkowy tor pozycji */
         if (lockPos) {
           for (let k = 0; k < numKeys; k++) {
             const pos = { x: readF32(), y: readF32(), z: readF32() };
@@ -365,7 +352,6 @@ export class BMDLoader {
         }
       }
 
-      /* ── BONES ────────────────────────────────────────── */
       for (let b = 0; b < boneCount; b++) {
         const isDummy = view.getUint8(off) > 0; off += 1;
 
@@ -378,12 +364,10 @@ export class BMDLoader {
         const parent   = readS16();
         const bone: BMDTextureBone = { name:boneName, parent, isDummy:false, matrixes:[] };
 
-        /* ---- ścieżki animacji dla każdej akcji ----------- */
         for (let a = 0; a < actionCount; a++) {
           const act   = bmd.actions[a];
           const keys  = act.numAnimationKeys;
 
-          /* brak klatek → nic nie czytamy z bufora */
           if (keys === 0) {
             bone.matrixes.push({
               position  : [{ x:0, y:0, z:0 }],
@@ -395,17 +379,14 @@ export class BMDLoader {
 
           const mat: BMDBoneMatrix = { position:[], rotation:[], quaternion:[] };
 
-          /* -- POZYCJE (zawsze obecne, v10/v12/v15) -------- */
           for (let k = 0; k < keys; k++) {
             mat.position.push({ x: readF32(), y: readF32(), z: readF32() });
           }
 
-          /* -- ROTACJE ------------------------------------- */
           for (let k = 0; k < keys; k++) {
             mat.rotation.push({ x: readF32(), y: readF32(), z: readF32() });
           }
 
-          /* -- QUATERNIONY -------------------------------- */
           mat.rotation.forEach(r => {
             const q = bmdAngleToQuaternion(r);
             mat.quaternion.push({ x:q.x, y:q.y, z:q.z, w:q.w });
@@ -425,7 +406,7 @@ export class BMDLoader {
   
 
 
-/** Czyta łańcuch ASCII (0-terminated) z DataView */
+/** Reads a null-terminated ASCII string from a DataView */
 private readStringFromDataView(view: DataView, offset: number, length: number): string {
   if (offset + length > view.byteLength) {
     console.warn(`Cannot read string at offset ${offset}: would exceed buffer bounds`);

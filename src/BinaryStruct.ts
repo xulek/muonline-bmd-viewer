@@ -22,7 +22,7 @@ export function calculateSize(layout: StructLayout): number {
 export function readStruct<T>(view: DataView, layout: StructLayout, baseOffset: number): { data: T, newOffset: number } {
   const structSize = calculateSize(layout);
   
-  // Sprawdzenie granic bufora
+  // Check buffer boundaries
   if (baseOffset + structSize > view.byteLength) {
     throw new Error(`Cannot read struct at offset ${baseOffset}: would require ${structSize} bytes but only ${view.byteLength - baseOffset} bytes available`);
   }
@@ -45,7 +45,7 @@ export function readStruct<T>(view: DataView, layout: StructLayout, baseOffset: 
 }
 
 /**
- * Odczytuje tablicę struktur z lepszym error handling
+ * Reads an array of structs with better error handling
  */
 export function readStructArray<T>(
   view: DataView, 
@@ -61,7 +61,7 @@ export function readStructArray<T>(
   const structSize = calculateSize(layout);
   const totalSize = structSize * count;
   
-  // Sprawdzenie czy mamy wystarczająco danych
+  // Check if there is enough data
   if (baseOffset + totalSize > view.byteLength) {
     console.error(`Cannot read ${count} structs of size ${structSize} (total ${totalSize} bytes) at offset ${baseOffset}: buffer size is ${view.byteLength}`);
     return null;

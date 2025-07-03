@@ -1,7 +1,7 @@
 /* ------------------------------------------------------------------
- *  LEA-256 ECB – czysta implementacja w TypeScripcie
- *  Port referencji KISA 1-do-1 (little-endian)
- *  Eksportuje createLea256EcbDecrypt(key) → (cipher) => plain
+ *  LEA-256 ECB – pure TypeScript implementation
+ *  1-to-1 port of the KISA reference (little-endian)
+ *  Exports createLea256EcbDecrypt(key) → (cipher) => plain
  * -----------------------------------------------------------------*/
 
 const KEY_DELTA = new Uint32Array([
@@ -40,7 +40,7 @@ const KEY_DELTA = new Uint32Array([
   }
   
   export function createLea256EcbDecrypt(key: Uint8Array) {
-    if (key.length !== 32) throw new Error('LEA-256 key musi mieć 32 bajty');
+    if (key.length !== 32) throw new Error('LEA-256 key must be 32 bytes');
   
     const keyWords = new Uint32Array(8);
     for (let i = 0; i < 8; i++) {
@@ -56,7 +56,7 @@ const KEY_DELTA = new Uint32Array([
   
     return function decryptEcb(cipher: Uint8Array): Uint8Array {
       if (cipher.length % 16 !== 0) {
-        throw new Error('LEA-ECB: długość danych musi być wielokrotnością 16 B');
+        throw new Error('LEA-ECB: data length must be a multiple of 16 B');
       }
   
       const out = cipher.slice();

@@ -6,7 +6,7 @@ import { convertOzjToDataUrl } from './ozj-loader';
 import { GLTFExporter } from 'three/examples/jsm/exporters/GLTFExporter.js';
 import './style.css';
 
-// == Widok ==
+// == View ==
 let skeletonHelper: THREE.SkeletonHelper | null = null;
 const showSkeletonEl = document.getElementById('show-skeleton-checkbox') as HTMLInputElement;
 const wireframeEl    = document.getElementById('wireframe-checkbox')    as HTMLInputElement;
@@ -23,20 +23,20 @@ class App {
     
     private currentAction: THREE.AnimationAction | null = null;
 
-    // ### ZMIANA ### Przechowujemy stan aplikacji
+    // ### CHANGE ### We store the application state
     private bmdFile: File | null = null;
     private loadedGroup: THREE.Group | null = null;
     private requiredTextures: string[] = [];
-    private exportBtn!: HTMLButtonElement;        // ← nowy przycisk
+    private exportBtn!: HTMLButtonElement;        // ← new button
     private textureLoader = new THREE.TextureLoader();
 
-    // ### NOWE ### Do obrotu
+    // ### NEW ### For rotation
     private isAutoRotating = true;
     private userIsInteracting = false;
 
-    // ### NOWE ### Elementy diagnostyczne
-    private diagActionsCountEl!: HTMLElement;      // liczba klipów / akcji
-    private diagAnimationKeysEl!: HTMLElement;     // klatki w aktywnym klipie
+    // ### NEW ### Diagnostic elements
+    private diagActionsCountEl!: HTMLElement;      // number of clips / actions
+    private diagAnimationKeysEl!: HTMLElement;     // frames in the active clip
     private diagAnimationsCountEl!: HTMLElement;
     private diagCurrentFrameEl!: HTMLElement;
     private diagBonesCountEl!: HTMLElement;
@@ -47,7 +47,7 @@ class App {
     private frameCount = 0;
     private fps = 0;
 
-    // --- Blokada klatek ---
+    // --- Frame lock ---
     private lockFrameCheckbox!: HTMLInputElement;
     private lockFrameInput!:    HTMLInputElement;
     private lockCurrentBtn!:    HTMLButtonElement;
@@ -66,12 +66,12 @@ class App {
     }
 
     //----------------------------------------------------------
-    // THREE.JS (bez zmian)
+    // THREE.JS (no changes)
     //----------------------------------------------------------
     private initThree() {
         console.groupCollapsed('%c[App] initThree()', 'color:#0f0');
         const container = document.getElementById('canvas-container');
-        if (!container) throw new Error('Brak #canvas-container w HTML!');
+        if (!container) throw new Error('#canvas-container not found in HTML!');
         this.scene = new THREE.Scene();
         this.scene.background = new THREE.Color(0x1a1a1a);
         this.camera = new THREE.PerspectiveCamera(75, container.clientWidth / container.clientHeight, 0.1, 10000);
@@ -87,7 +87,7 @@ class App {
         this.controls = new OrbitControls(this.camera, this.renderer.domElement);
         this.controls.enableDamping = true;
 
-        // ### NOWE ### Pauzowanie obrotu podczas interakcji
+        // ### NEW ### Pause rotation during interaction
         this.controls.addEventListener('start', () => { this.userIsInteracting = true; });
         this.controls.addEventListener('end', () => { this.userIsInteracting = false; });
 
@@ -102,7 +102,7 @@ class App {
     }
 
     //----------------------------------------------------------
-    // UI - Zmodyfikowane
+    // UI - Modified
     //----------------------------------------------------------
     private initUI() {
         console.groupCollapsed('%c[App] initUI()', 'color:#0f0');
@@ -122,24 +122,24 @@ class App {
         
         speedSlider.addEventListener('input', (e) => {
             const speed = parseFloat((e.target as HTMLInputElement).value);
-            speedLabel.textContent = `Prędkość: ${speed.toFixed(2)}x`;
+            speedLabel.textContent = `Speed: ${speed.toFixed(2)}x`;
             this.setAnimationSpeed(speed);
         });
-        speedLabel.textContent = `Prędkość: ${parseFloat(speedSlider.value).toFixed(2)}x`;
+        speedLabel.textContent = `Speed: ${parseFloat(speedSlider.value).toFixed(2)}x`;
 
         const status = document.getElementById('status')!;
-        status.textContent = 'Oczekiwanie na plik BMD…';
+        status.textContent = 'Waiting for BMD file…';
 
         this.initScaleSlider();
 
-        // ### NOWE ### Kontrolka obrotu
+        // ### NEW ### Rotation control
         const autoRotateCheckbox = document.getElementById('auto-rotate-checkbox') as HTMLInputElement;
         autoRotateCheckbox.addEventListener('change', (e) => {
             this.isAutoRotating = (e.target as HTMLInputElement).checked;
         });
         this.isAutoRotating = autoRotateCheckbox.checked;
 
-        /* KOLOR TŁA */
+        /* BACKGROUND COLOR */
         const bgInput = document.getElementById('bg-color-input') as HTMLInputElement;
         bgInput.addEventListener('input', e => {
             const c = (e.target as HTMLInputElement).value;
@@ -147,27 +147,27 @@ class App {
             (document.getElementById('canvas-container') as HTMLElement).style.backgroundColor = c;
         });
 
-        /* JASNOŚĆ */
+        /* BRIGHTNESS */
         const brightSlider = document.getElementById('brightness-slider') as HTMLInputElement;
         const brightLabel  = document.getElementById('brightness-label')!;
         brightSlider.addEventListener('input', e => {
             const v = parseFloat((e.target as HTMLInputElement).value);
-            brightLabel.textContent = `Jasność: ${v.toFixed(2)}×`;
+            brightLabel.textContent = `Brightness: ${v.toFixed(2)}×`;
             this.setBrightness(v);
         });
-        brightLabel.textContent = 'Jasność: 1.00×';
+        brightLabel.textContent = 'Brightness: 1.00×';
 
-        // ### NOWE ### Elementy diagnostyczne
+        // ### NEW ### Diagnostic elements
         this.diagActionsCountEl    = document.getElementById('diag-actions-count')!;
         this.diagAnimationKeysEl   = document.getElementById('diag-animation-keys')!;
         this.diagCurrentFrameEl    = document.getElementById('diag-current-frame')!;
         this.diagBonesCountEl      = document.getElementById('diag-bones-count')!;
         this.diagMeshesCountEl     = document.getElementById('diag-meshes-count')!;
-        this.diagFpsEl             = document.getElementById('diag-fps')!;        
+        this.diagFpsEl             = document.getElementById('diag-fps')!;
 
-        this.updateDiagnosticInfo(0); // Ustaw początkowe wartości
+        this.updateDiagnosticInfo(0); // Set initial values
 
-        // ---------- BLOKADA KLATEK ----------
+        // ---------- FRAME LOCK ----------
         this.lockFrameCheckbox = document.getElementById('lock-frame-checkbox') as HTMLInputElement;
         this.lockFrameInput    = document.getElementById('lock-frame-input')    as HTMLInputElement;
         this.lockCurrentBtn    = document.getElementById('lock-current-btn')    as HTMLButtonElement;
@@ -183,7 +183,7 @@ class App {
         });
 
         this.lockCurrentBtn.addEventListener('click', () => {
-            // pobierz bieżącą klatkę z diagnostyki
+            // get the current frame from diagnostics
             const cur = parseInt(this.diagCurrentFrameEl.textContent || '0', 10) || 0;
             this.lockFrameInput.value = cur.toString();
             this.lockedFrame = cur;
@@ -210,7 +210,7 @@ class App {
         setupDropZone(bmdZone, bmdInput, files => this.handleBmdFile(files[0]));
         setupDropZone(texZone, texInput, files => this.handleMultipleTextureFiles(files));
 
-        // === Pokaż / ukryj szkielet =========================================
+        // === Show / hide skeleton =========================================
         showSkeletonEl.addEventListener('change', () => {
             if (skeletonHelper) skeletonHelper.visible = showSkeletonEl.checked;
         });
@@ -238,26 +238,26 @@ class App {
                                                                                 
        scaleSlider.addEventListener('input', (e) => {                                     
        const scale = parseFloat((e.target as HTMLInputElement).value);               
-        scaleLabel.textContent = `Skala: ${scale.toFixed(2)}x`;                       
+        scaleLabel.textContent = `Scale: ${scale.toFixed(2)}x`;                       
        this.setModelScale(scale);                                                     
         });                                                                               
-        scaleLabel.textContent = `Skala: ${parseFloat(scaleSlider.value).toFixed(2)}x`;   
+        scaleLabel.textContent = `Scale: ${parseFloat(scaleSlider.value).toFixed(2)}x`;   
         }
 
        private setModelScale(scale: number) {                                                  
          if (this.loadedGroup) {                                                             
           this.loadedGroup.scale.set(scale, scale, scale);                                
-          }                                                                                   
+          }
         }
     
     private handleBmdFile = (file: File) => {
         console.log(`[App] handleBmdFile("${file.name}")`);
         this.bmdFile = file;
-        document.querySelector('#bmd-drop-zone p')!.textContent = `Wybrano: ${file.name}`;
+        document.querySelector('#bmd-drop-zone p')!.textContent = `Selected: ${file.name}`;
         this.loadAndDisplayModel();
     }
 
-    /** Ładuje każdą teksturę z listy */
+    /** Loads every texture from the list */
     private handleMultipleTextureFiles = (files: FileList | File[]) => {
         Array.from(files).forEach(f => this.loadAndApplyTexture(f));
     }
@@ -269,65 +269,59 @@ class App {
 
     private exportToGLB() {
         if (!this.loadedGroup) {
-            alert('Najpierw wczytaj model BMD.');
+            alert('Load a BMD model first.');
             return;
         }
         
         const exporter = new GLTFExporter();
         
-        // Ustawienia: zapis binarny .glb, osadź obrazy, dołącz animacje
+        // Settings: binary .glb, embed images, include animations
         const options = {
             binary: true,
             animations: this.loadedGroup.animations,
             embedImages: true,
-            // poniższe zwykle nie trzeba zmieniać:
-            // trs:false, onlyVisible:true, truncateDrawRange:false,
-            // forceIndices:false, forcePowerOfTwoTextures:false
         };
         
         exporter.parse(
             this.loadedGroup,
             (result: ArrayBuffer | { [key: string]: any }) => {
-            // binary:true => dostaniemy ArrayBuffer
             const glbBuffer = result as ArrayBuffer;
             const blob = new Blob([glbBuffer], { type: 'model/gltf-binary' });
         
-            // Przygotuj nazwę pliku: "<nazwaModelu>_<yyyyMMdd_HHmmss>.glb"
             const nameBase =
                 (this.loadedGroup!.name || 'model').replace(/[^a-z0-9_-]/gi, '_');
             const stamp = new Date()
                 .toISOString()
                 .replace(/[:T]/g, '')
-                .split('.')[0]; // 20250702_143512
+                .split('.')[0];
             const fileName = `${nameBase}_${stamp}.glb`;
         
-            // „Sztuczny” klik w <a download> – zero zależności
             const link = document.createElement('a');
             link.href = URL.createObjectURL(blob);
             link.download = fileName;
             link.click();
             URL.revokeObjectURL(link.href);
         
-            console.log(`✔️  Zapisano ${fileName} (${(blob.size / 1024).toFixed(1)} KB)`);
+            console.log(`✔️  Saved ${fileName} (${(blob.size / 1024).toFixed(1)} KB)`);
             },
             (error) => {
             console.error('❌ GLTFExporter error:', error);
-            alert('Błąd podczas eksportu. Sprawdź konsolę.');
+            alert('Error during export. Check the console.');
             },
             options
         );
     }
 
     //----------------------------------------------------------
-    // ŁADOWANIE MODELU - Zmodyfikowane
+    // MODEL LOADING - Modified
     //----------------------------------------------------------
     private async loadAndDisplayModel() {
         if (!this.bmdFile) return;
         const statusEl = document.getElementById('status')!;
-        statusEl.textContent = 'Ładowanie modelu…';
+        statusEl.textContent = 'Loading model…';
         console.groupCollapsed('%c[App] loadAndDisplayModel()', 'color:yellow');
         console.time('loadAndDisplayModel');
-        // Reset stanu
+        // Reset state
         this.clearScene();
         this.loadedGroup = null;
         this.requiredTextures = [];
@@ -341,7 +335,7 @@ class App {
             this.loadedGroup = group;
             this.requiredTextures = requiredTextures;
             this.setupAnimations(group);
-            statusEl.textContent = `Załadowano: ${group.name} (animacje: ${group.animations.length})`;
+            statusEl.textContent = `Loaded: ${group.name} (animations: ${group.animations.length})`;
             this.updateTextureUI();
             this.updateDiagnosticInfo();
 
@@ -352,7 +346,6 @@ class App {
             }
             skeletonHelper = new THREE.SkeletonHelper(group);
             skeletonHelper.visible = showSkeletonEl.checked;
-            // Opcjonalnie: skeletonHelper.material.color.set(0x00ff00);
             this.scene.add(skeletonHelper);
 
             // --- wireframe init ----
@@ -375,7 +368,7 @@ class App {
 
         } catch (err) {
             console.error('‼️ loader.load() ERROR', err);
-            statusEl.textContent = `Błąd: ${(err as Error).message}`;
+            statusEl.textContent = `Error: ${(err as Error).message}`;
         } finally {
             console.timeEnd('loadAndDisplayModel');
             console.groupEnd();
@@ -388,7 +381,6 @@ class App {
         const list  = document.getElementById('blending-container')!;
         list.innerHTML = '';
 
-        // mapujemy czytelną nazwę → stała three.js
         const modes: Record<string, number> = {
             'Opaque':     THREE.NoBlending,
             'Normal':     THREE.NormalBlending,
@@ -416,11 +408,9 @@ class App {
                 select.appendChild(opt);
             });
 
-            // ustaw początkową wartość
             const cur = Object.entries(modes).find(([,v]) => v === (mesh.material as THREE.Material).blending);
             select.value = cur ? cur[0] : 'Normal';
 
-            // reakcja na zmianę
             select.addEventListener('change', () => {
                 const mat = mesh.material as THREE.Material;
                 mat.blending    = modes[select.value] as THREE.Blending;
@@ -433,11 +423,10 @@ class App {
             list.appendChild(row);
         });
 
-        // pokaż sekcję dopiero gdy mamy coś do wyświetlenia
         (box as HTMLElement).style.display = this.meshRefs.length ? 'block' : 'none';
     }
     //----------------------------------------------------------
-    // ### NOWA METODA ### Czyszczenie sceny
+    // ### NEW METHOD ### Scene cleanup
     //----------------------------------------------------------
     private clearScene() {
         const old = this.scene.getObjectByName('bmd_model');
@@ -459,12 +448,12 @@ class App {
             this.currentAction = null;
             document.getElementById('animations-container')!.innerHTML = '';
         }
-        if (this.exportBtn) this.exportBtn.disabled = true;  // ← zablokuj
-        this.updateDiagnosticInfo(); // Aktualizuj po wyczyszczeniu sceny
+        if (this.exportBtn) this.exportBtn.disabled = true;
+        this.updateDiagnosticInfo();
     }
     
     //----------------------------------------------------------
-    // ### NOWA METODA ### Aktualizacja UI tekstur
+    // ### NEW METHOD ### Update texture UI
     //----------------------------------------------------------
     private updateTextureUI() {
         const textureControls = document.getElementById('texture-controls')!;
@@ -474,22 +463,22 @@ class App {
             textureInfo.textContent = this.requiredTextures.join(', ');
             textureControls.style.display = 'block';
         } else {
-            textureInfo.textContent = "Ten model nie wymaga tekstur.";
+            textureInfo.textContent = "This model does not require textures.";
             textureControls.style.display = 'block';
             document.getElementById('texture-drop-zone')!.style.display = 'none';
         }
     }
 
-  // Poprawiona funkcja loadAndApplyTexture w main.ts
+  // Corrected loadAndApplyTexture function in main.ts
 
     private async loadAndApplyTexture(file: File) {
         if (!this.loadedGroup) {
-        console.warn('Model niezaładowany – brak tekstur.');
+        console.warn('Model not loaded - no textures.');
         return;
         }
     
         const status = document.getElementById('status')!;
-        status.textContent = `Ładowanie: ${file.name}…`;
+        status.textContent = `Loading: ${file.name}…`;
         
         console.log(`=== TEXTURE LOADING: ${file.name} ===`);
         console.log('Required textures:', this.requiredTextures);
@@ -513,19 +502,18 @@ class App {
         tex.colorSpace = THREE.SRGBColorSpace;
         tex.wrapS = tex.wrapT = THREE.RepeatWrapping;
         tex.flipY = false;
-        tex.name  = file.name;                  // ← potrzebne przy zapisie
+        tex.name  = file.name;
     
-        // POPRAWKA: Lepsze dopasowywanie nazw plików
         let applied = false;
     
         const equivExt: Record<string,string> = { jpg:'ozj', ozj:'jpg', tga:'ozt', ozt:'tga' };
 
         const fileName  = file.name.toLowerCase();
-        const fileBase  = fileName.replace(/\.[^.]+$/, '');        // bez kropki i rozszerzenia
+        const fileBase  = fileName.replace(/\.[^.]+$/, '');
         const fileExt   = fileName.split('.').pop()!;
         
         function normalizeWanted(path: string): { base:string; ext:string } {
-            const name = path.split(/[\\/]/).pop()!.toLowerCase(); // “baron01.jpg”
+            const name = path.split(/[\\/]/).pop()!.toLowerCase();
             const ext  = name.split('.').pop()!;
             const base = name.replace(/\.[^.]+$/, '');
             return { base, ext };
@@ -541,30 +529,24 @@ class App {
             
             console.log(`  Checking mesh texture: "${wantedPath}" (base: "${wantedBaseName}")`);
             
-            // Sprawdzamy różne warianty dopasowania:
-            // 1. Dokładna nazwa pliku
-            // 2. Nazwa bazowa (bez rozszerzenia)  
-            // 3. Czy wymagana ścieżka kończy się naszą nazwą
-            // 4. Czy nasza nazwa zawiera wymaganą nazwę bazową
             const { base:wantedBase, ext:wantedExt } = normalizeWanted(wantedPath);
 
             const extMatch =
-                  wantedExt === fileExt                // identyczne
-               || equivExt[wantedExt] === fileExt;     // równoważne (.jpg↔.ozj, .tga↔.ozt)
+                  wantedExt === fileExt
+               || equivExt[wantedExt] === fileExt;
             
-            const isMatch = extMatch && wantedBase === fileBase;  // baza musi być 1-do-1
+            const isMatch = extMatch && wantedBase === fileBase;
                 
             if (isMatch) {
                 const mat = (obj as THREE.Mesh).material as THREE.MeshPhongMaterial;
                 
-                // Sprawdzamy czy materiał ma już teksturę
                 if (mat.map) {
                 console.log(`  Replacing existing texture on mesh`);
-                mat.map.dispose(); // Zwolnienie starej tekstury
+                mat.map.dispose();
                 }
                 
-                mat.map = tex;  
-                mat.color.set(0xffffff);  // Resetujemy kolor do białego
+                mat.map = tex;
+                mat.color.set(0xffffff);
                 mat.needsUpdate = true;
                 applied = true;
                 
@@ -573,7 +555,6 @@ class App {
             }
         });
         
-        // Jeśli nie znaleziono dopasowania, wyświetlmy dostępne opcje
         if (!applied) {
             console.log('❌ No matches found. Available texture paths:');
             this.loadedGroup.traverse(obj => {
@@ -584,16 +565,16 @@ class App {
         }
     
         status.textContent = applied
-            ? `Tekstura „${file.name}" załadowana.`
-            : `Nie znaleziono pasującego mesha dla „${file.name}". Sprawdź konsolę.`;
+            ? `Texture "${file.name}" loaded.`
+            : `No matching mesh found for "${file.name}". Check the console.`;
     
         } catch (e) {
         console.error('Texture load error:', e);
-        status.textContent = `Błąd: ${(e as Error).message}`;
+        status.textContent = `Error: ${(e as Error).message}`;
         }
     }
 
-    /** Zapisuje wszystkie unikalne mapy materiałów do plików PNG */
+    /** Saves all unique material maps to PNG files */
 private exportTextures() {
   if (!this.loadedGroup) return;
 
@@ -627,12 +608,12 @@ private exportTextures() {
 
   const st = document.getElementById('status')!;
   st.textContent = exported.size
-      ? `Wyeksportowano ${exported.size} tekstur(y).`
-      : 'Brak załadowanych tekstur do eksportu.';
+      ? `Exported ${exported.size} texture(s).`
+      : 'No loaded textures to export.';
 }
 
     //----------------------------------------------------------
-    // Ustawianie prędkości i animacje (bez większych zmian)
+    // Setting speed and animations (no major changes)
     //----------------------------------------------------------
     public setAnimationSpeed(speed: number) {
         if (this.currentAction) {
@@ -650,18 +631,16 @@ private exportTextures() {
         animBox.innerHTML = '';
     
         if (!model.animations.length) {
-            animBox.textContent = 'Brak animacji w tym modelu.';
+            animBox.textContent = 'No animations in this model.';
             return;
         }
     
         model.animations.forEach((clip, i) => {
             const btn = document.createElement('button');
     
-            /* -------- DODAJ TĘ LINIĘ -------- */
             btn.classList.add('animation-btn');
-            /* -------------------------------- */
     
-            btn.textContent = `Animacja ${i}`;
+            btn.textContent = `Animation ${i}`;
             btn.onclick = () => {
                 this.mixer!.stopAllAction();
                 this.currentAction = this.mixer!.clipAction(clip);
@@ -677,7 +656,6 @@ private exportTextures() {
         if (model.animations.length > 0) {
             (animBox.querySelector('button') as HTMLButtonElement)?.click();
         }
-        // pokaż blokadę tylko, jeśli klip ma klatki
         const lockBox   = document.getElementById('frame-lock-controls')!;
         lockBox.style.display =
             model.animations.length && (model.animations[0] as any).userData?.numAnimationKeys
@@ -685,69 +663,64 @@ private exportTextures() {
 
         this.lockFrameCheckbox.checked = false;
         this.isFrameLocked = false;
-        this.updateDiagnosticInfo(); // Aktualizuj po załadowaniu animacji
+        this.updateDiagnosticInfo();
     }
 
     private animate = (time: DOMHighResTimeStamp) => {
         requestAnimationFrame(this.animate);
         const delta = this.clock.getDelta();
 
-        // ### NOWE ### Logika obrotu
         if (this.loadedGroup && this.isAutoRotating && !this.userIsInteracting) {
             this.loadedGroup.rotation.z += delta * 0.2;
         }
 
         if (this.mixer) {
             if (this.isFrameLocked) {
-                this.applyLockedFrame();   // wymusza pozę i nie przesuwa czasu
+                this.applyLockedFrame();
             } else {
-                this.mixer.update(delta);  // normalny przebieg animacji
+                this.mixer.update(delta);
             }
         }
         this.controls.update();
         this.renderer.render(this.scene, this.camera);
 
-        // ### NOWE ### Aktualizacja diagnostyki w pętli
         this.updateDiagnosticInfo(time);
     };
 
-    /** Ustaw akcję dokładnie na this.lockedFrame i odśwież pozę */
+    /** Set the action to exactly this.lockedFrame and refresh the pose */
     private applyLockedFrame() {
         if (!this.currentAction) return;
 
-        const clip = this.currentAction.getClip() as THREE.AnimationClip &
-                     { userData?: { numAnimationKeys?: number } };
+        const clip = this.currentAction.getClip() as THREE.AnimationClip & {
+            userData?: { numAnimationKeys?: number }
+        };
 
         const numKeys = clip.userData?.numAnimationKeys ?? 0;
         if (!numKeys) return;
 
-        // upewnij się, że numer mieści się w zakresie
         const frame = Math.min(Math.max(this.lockedFrame, 0), numKeys - 1);
 
-        // konwersja klatki na czas (sekundy)
         this.currentAction.time = frame / numKeys * clip.duration;
-        this.mixer!.update(0);      // odśwież pozę natychmiast
+        this.mixer!.update(0);
     }
 
-    // ### NOWA METODA ### Aktualizacja informacji diagnostycznych
+    // ### NEW METHOD ### Update diagnostic information
     private updateDiagnosticInfo(time: DOMHighResTimeStamp = 0) {
 
-        /*  A) LICZBA AKCJI  */
         this.diagActionsCountEl.textContent =
             this.loadedGroup?.animations.length.toString() || '0';
       
-        /*  B) JEŚLI JEST ODTWARZANA AKCJA -> KLUCZE I AKTUALNA KLATKA  */
         if (this.currentAction) {
-            /* dane z klipu */
-            const clip = this.currentAction.getClip() as THREE.AnimationClip &
-                         { userData?: { numAnimationKeys?: number } };
+            const clip = this.currentAction.getClip() as THREE.AnimationClip & {
+                userData?: { numAnimationKeys?: number }
+            };
       
             const numKeys = clip.userData?.numAnimationKeys ?? 0;
             this.diagAnimationKeysEl.textContent = numKeys.toString();
             
             if (numKeys > 0) {
                 const localTime  = (this.currentAction.time % clip.duration + clip.duration) % clip.duration;
-                const progress   = localTime / clip.duration;      // od 0 do <1
+                const progress   = localTime / clip.duration;
                 const currentFrame = this.isFrameLocked
                     ? this.lockedFrame
                     : Math.floor(localTime / clip.duration * numKeys);
@@ -756,12 +729,10 @@ private exportTextures() {
                 this.diagCurrentFrameEl.textContent = 'N/A';
             }
         } else {
-            /* brak aktywnej animacji */
             this.diagAnimationKeysEl.textContent = '0';
             this.diagCurrentFrameEl.textContent  = 'N/A';
         }
 
-        // Liczba kości
         let boneCount = 0;
         if (this.loadedGroup) {
             this.loadedGroup.traverse(obj => {
@@ -772,7 +743,6 @@ private exportTextures() {
         }
         this.diagBonesCountEl.textContent = boneCount.toString();
 
-        // Liczba meshy
         let meshCount = 0;
         if (this.loadedGroup) {
             this.loadedGroup.traverse(obj => {
@@ -783,10 +753,9 @@ private exportTextures() {
         }
         this.diagMeshesCountEl.textContent = meshCount.toString();
 
-        // FPS
         this.frameCount++;
         const elapsed = time - this.lastFrameTime;
-        if (elapsed >= 1000) { // Aktualizuj co sekundę
+        if (elapsed >= 1000) {
             this.fps = (this.frameCount * 1000) / elapsed;
             this.diagFpsEl.textContent = this.fps.toFixed(0);
             this.frameCount = 0;

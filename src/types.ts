@@ -17,8 +17,8 @@ export interface BMDTriangle {
   vertexIndex: number[];
   normalIndex: number[];
   texCoordIndex: number[];
-  lightMapCoord: BMDTexCoord[]; // Naprawione: Dodano brakujące pole
-  lightMapIndexes: number;       // Naprawione: Dodano brakujące pole
+  lightMapCoord: BMDTexCoord[];
+  lightMapIndexes: number;
 }
 
 export interface BMDTextureVertex {
@@ -50,7 +50,7 @@ export interface BMDTextureMesh {
   texturePath: string;
 }
 
-// Nowe interfejsy dla animacji
+// New interfaces for animations
 export interface BMDBoneMatrix {
   position: Vector3[];
   rotation: Vector3[];
@@ -77,3 +77,8 @@ export interface BMD {
   bones: BMDTextureBone[];
   actions: BMDTextureAction[];
 }
+
+// Types for BinaryStruct
+export type StructPrimitive = 'int16' | 'uint16' | 'uint8' | 'float32';
+export type StructField = [string, StructPrimitive];
+export type StructLayout = readonly StructField[];
