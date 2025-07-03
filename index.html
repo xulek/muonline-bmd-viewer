@@ -33,7 +33,7 @@
       <!-- Export section -->
       <div class="control-section" id="export-controls">
         <h3>💾 Eksport</h3>
-        <button id="export-glb-btn" class="modern-btn">Eksportuj do GLB</button>
+        <button id="export-glb-btn" class="modern-btn animation-btn">Eksportuj do GLB</button>
       </div>
 
       <!-- Texture loading section -->
@@ -83,6 +83,21 @@
           <label id="scale-label" for="scale-slider">Skala: 1.00x</label>
         </div>
         <div class="auto-rotate-control" style="display: none;"></div>
+      </div>
+
+      <!-- Visualization -->
+      <div class="control-section">
+        <h3>👁️ Widok</h3>
+
+        <div class="checkbox-control">
+          <input type="checkbox" id="show-skeleton-checkbox" class="modern-checkbox">
+          <label for="show-skeleton-checkbox">Pokaż szkielet</label>
+        </div>
+
+        <div class="checkbox-control">
+          <input type="checkbox" id="wireframe-checkbox" class="modern-checkbox">
+          <label for="wireframe-checkbox">Wireframe</label>
+        </div>
       </div>
 
       <!-- Frame lock controls -->

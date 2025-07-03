@@ -6,6 +6,11 @@ import { convertOzjToDataUrl } from './ozj-loader';
 import { GLTFExporter } from 'three/examples/jsm/exporters/GLTFExporter.js';
 import './style.css';
 
+// == Widok ==
+let skeletonHelper: THREE.SkeletonHelper | null = null;
+const showSkeletonEl = document.getElementById('show-skeleton-checkbox') as HTMLInputElement;
+const wireframeEl    = document.getElementById('wireframe-checkbox')    as HTMLInputElement;
+
 class App {
     private scene!: THREE.Scene;
     private camera!: THREE.PerspectiveCamera;
@@ -177,6 +182,26 @@ class App {
 
         setupDropZone(bmdZone, bmdInput, this.handleBmdFile);
         setupDropZone(texZone, texInput, this.handleTextureFile);
+
+        // === Pokaż / ukryj szkielet =========================================
+        showSkeletonEl.addEventListener('change', () => {
+            if (skeletonHelper) skeletonHelper.visible = showSkeletonEl.checked;
+        });
+
+        // === Wireframe on/off ===============================================
+        wireframeEl.addEventListener('change', () => {
+            const flag = wireframeEl.checked;
+            this.scene.traverse(obj => {
+                if ((obj as any).isMesh) {
+                    const mat = (obj as THREE.Mesh).material as THREE.Material;
+                    if ('wireframe' in mat) {
+                        (mat as any).wireframe = flag;
+                        mat.needsUpdate = true;
+                    }
+                }
+            });
+        });
+
         console.groupEnd();
     }
 
@@ -270,7 +295,6 @@ class App {
         statusEl.textContent = 'Ładowanie modelu…';
         console.groupCollapsed('%c[App] loadAndDisplayModel()', 'color:yellow');
         console.time('loadAndDisplayModel');
-        
         // Reset stanu
         this.clearScene();
         this.loadedGroup = null;
@@ -279,20 +303,36 @@ class App {
 
         try {
             const bmdBuf = await this.bmdFile.arrayBuffer();
-
-            // ZMIANA: Używamy nowej sygnatury `bmdLoader.load`
             const { group, requiredTextures } = await this.bmdLoader.load(bmdBuf);
-            
             group.name = 'bmd_model';
             this.scene.add(group);
-            this.loadedGroup = group; // Zapisujemy referencję
-            this.requiredTextures = requiredTextures; // Zapisujemy wymagania
-
+            this.loadedGroup = group;
+            this.requiredTextures = requiredTextures;
             this.setupAnimations(group);
             statusEl.textContent = `Załadowano: ${group.name} (animacje: ${group.animations.length})`;
-            
             this.updateTextureUI();
-            this.updateDiagnosticInfo(); // Aktualizuj po załadowaniu modelu
+            this.updateDiagnosticInfo();
+
+            // --- skeleton helper ---
+            if (skeletonHelper) {
+                this.scene.remove(skeletonHelper);
+                (skeletonHelper.geometry as THREE.BufferGeometry).dispose();
+            }
+            skeletonHelper = new THREE.SkeletonHelper(group);
+            skeletonHelper.visible = showSkeletonEl.checked;
+            // Opcjonalnie: skeletonHelper.material.color.set(0x00ff00);
+            this.scene.add(skeletonHelper);
+
+            // --- wireframe init ----
+            group.traverse(obj => {
+                if ((obj as any).isMesh) {
+                    const m = (obj as THREE.Mesh).material as THREE.Material;
+                    if ('wireframe' in m) {
+                        (m as any).wireframe = wireframeEl.checked;
+                        m.needsUpdate = true;
+                    }
+                }
+            });
 
         } catch (err) {
             console.error('‼️ loader.load() ERROR', err);
