@@ -17,6 +17,8 @@ class App {
     private renderer!: THREE.WebGLRenderer;
     private controls!: OrbitControls;
     private clock: THREE.Clock = new THREE.Clock();
+    private ambientLight!: THREE.AmbientLight;
+    private directionalLight!: THREE.DirectionalLight;
     private mixer: THREE.AnimationMixer | null = null;
     
     private currentAction: THREE.AnimationAction | null = null;
@@ -88,10 +90,12 @@ class App {
         this.controls.addEventListener('start', () => { this.userIsInteracting = true; });
         this.controls.addEventListener('end', () => { this.userIsInteracting = false; });
 
-        this.scene.add(new THREE.AmbientLight(0xffffff, 0.7));
-        const dir = new THREE.DirectionalLight(0xffffff, 1.5);
-        dir.position.set(5, 10, 7.5);
-        this.scene.add(dir);
+        this.ambientLight   = new THREE.AmbientLight(0xffffff, 0.7);
+        this.directionalLight = new THREE.DirectionalLight(0xffffff, 1.5);
+        this.directionalLight.position.set(5, 10, 7.5);
+
+        this.scene.add(this.ambientLight);
+        this.scene.add(this.directionalLight);
         this.scene.add(new THREE.GridHelper(500, 10));
         console.groupEnd();
     }
@@ -131,6 +135,24 @@ class App {
             this.isAutoRotating = (e.target as HTMLInputElement).checked;
         });
         this.isAutoRotating = autoRotateCheckbox.checked;
+
+        /* KOLOR TŁA */
+        const bgInput = document.getElementById('bg-color-input') as HTMLInputElement;
+        bgInput.addEventListener('input', e => {
+            const c = (e.target as HTMLInputElement).value;
+            this.scene.background = new THREE.Color(c);
+            (document.getElementById('canvas-container') as HTMLElement).style.backgroundColor = c;
+        });
+
+        /* JASNOŚĆ */
+        const brightSlider = document.getElementById('brightness-slider') as HTMLInputElement;
+        const brightLabel  = document.getElementById('brightness-label')!;
+        brightSlider.addEventListener('input', e => {
+            const v = parseFloat((e.target as HTMLInputElement).value);
+            brightLabel.textContent = `Jasność: ${v.toFixed(2)}×`;
+            this.setBrightness(v);
+        });
+        brightLabel.textContent = 'Jasność: 1.00×';
 
         // ### NOWE ### Elementy diagnostyczne
         this.diagActionsCountEl    = document.getElementById('diag-actions-count')!;
@@ -722,6 +744,12 @@ class App {
             this.frameCount = 0;
             this.lastFrameTime = time;
         }
+    }
+
+    private setBrightness(value: number) {
+      this.renderer.toneMappingExposure = value;
+      if (this.ambientLight)    this.ambientLight.intensity   = 0.7 * value;
+      if (this.directionalLight) this.directionalLight.intensity = 1.5 * value;
     }
 }
 

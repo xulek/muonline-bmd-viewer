@@ -132,6 +132,23 @@
         <h3>🌈 Blending meshy</h3>
         <div id="blending-container"></div>
       </div>
+
+      <!-- Background color and brightness control -->
+      <div class="control-section">
+        <h3>🎨 Tło</h3>
+
+        <!-- KOLOR TŁA -->
+        <div class="background-control">
+          <label for="bg-color-input">Kolor tła:</label>
+          <input type="color" id="bg-color-input" value="#1a1a1a">
+        </div>
+
+        <!-- JASNOŚĆ -->
+        <div class="brightness-control">
+          <label id="brightness-label" for="brightness-slider">Jasność: 1.00×</label>
+          <input type="range" id="brightness-slider" min="0.1" max="2.0" step="0.1" value="1.0">
+        </div>
+      </div>
     </div>
   </div>
 

@@ -596,3 +596,17 @@ body::before {
 ::-webkit-scrollbar-thumb:hover {
   background: var(--accent-secondary);
 }
+
+/* New styles for background and brightness controls */
+.background-control,
+.brightness-control {
+  margin: 1rem 0;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  gap: .5rem;
+}
+
+#brightness-slider {
+  width: 200px;
+}
