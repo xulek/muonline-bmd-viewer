@@ -196,9 +196,9 @@ export class BMDLoader {
             const material = new THREE.MeshPhongMaterial({
                 color: 0xcccccc,
                 side: THREE.DoubleSide,
-                transparent: true,
-                alphaTest: 0.1,
-                premultipliedAlpha: true
+                // transparent: true,
+                // alphaTest: 0.1,
+                // premultipliedAlpha: true
             });
 
             const { positions, normals, uvs, skinIndices, skinWeights } = this.extractGeometry(bmdMesh);
@@ -456,7 +456,7 @@ private readStringFromDataView(view: DataView, offset: number, length: number): 
 
             positions.push(v.position.x, v.position.y, v.position.z);
             normals.push(n.normal.x, n.normal.y, n.normal.z);
-            uvs.push(t.u, 1 - t.v);
+            uvs.push(t.u, t.v);
 
             skinIndices.push(v.node, 0, 0, 0);
             skinWeights.push(1, 0, 0, 0);
@@ -469,8 +469,8 @@ private readStringFromDataView(view: DataView, offset: number, length: number): 
             const t = tri.texCoordIndex;
 
             pushSafe(v[0], n[0], t[0]);
-            pushSafe(v[1], n[1], t[1]);
             pushSafe(v[2], n[2], t[2]);
+            pushSafe(v[1], n[1], t[1]);
 
             if (tri.polygon === 4) {
                 pushSafe(v[0], n[0], t[0]);

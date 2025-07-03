@@ -36,14 +36,12 @@ export async function convertOzjToDataUrl(buf: ArrayBuffer): Promise<string> {
   const ny    = view.getInt16(18, true);
   const depth = view.getUint8(20);
   
-  // POPRAWKA: Sprawdzamy rozmiar od offsetu 22 (16 + 6)
   const expectedSize = 22 + nx * ny * 4;
-
   const looksLikeOzt =
-    nx > 0 && ny > 0 &&
-    nx <= 1024 && ny <= 1024 &&
-    depth === 32 &&
-    expectedSize === size;
+      nx > 0 && ny > 0 &&
+      nx <= 1024 && ny <= 1024 &&
+      depth === 32 &&
+      expectedSize <= size;
 
   if (!looksLikeOzt) throw new Error('Unsupported OZ? file');
 

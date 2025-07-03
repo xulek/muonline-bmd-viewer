@@ -3,6 +3,7 @@ import * as THREE from 'three';
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
 import { BMDLoader, convertTgaToDataUrl } from './bmd-loader';
 import { convertOzjToDataUrl } from './ozj-loader';
+import { GLTFExporter } from 'three/examples/jsm/exporters/GLTFExporter.js';
 import './style.css';
 
 class App {
@@ -102,6 +103,9 @@ class App {
         
         const speedSlider = document.getElementById('speed-slider') as HTMLInputElement;
         const speedLabel = document.getElementById('speed-label')!;
+
+        const exportBtn = document.getElementById('export-glb-btn') as HTMLButtonElement;
+        exportBtn.addEventListener('click', () => this.exportToGLB());
         
         speedSlider.addEventListener('input', (e) => {
             const speed = parseFloat((e.target as HTMLInputElement).value);
@@ -204,6 +208,57 @@ class App {
     private handleTextureFile = (file: File) => {
         console.log(`[App] handleTextureFile("${file.name}")`);
         this.loadAndApplyTexture(file);
+    }
+
+    private exportToGLB() {
+        if (!this.loadedGroup) {
+            alert('Najpierw wczytaj model BMD.');
+            return;
+        }
+        
+        const exporter = new GLTFExporter();
+        
+        // Ustawienia: zapis binarny .glb, osadź obrazy, dołącz animacje
+        const options = {
+            binary: true,
+            animations: this.loadedGroup.animations,
+            embedImages: true,
+            // poniższe zwykle nie trzeba zmieniać:
+            // trs:false, onlyVisible:true, truncateDrawRange:false,
+            // forceIndices:false, forcePowerOfTwoTextures:false
+        };
+        
+        exporter.parse(
+            this.loadedGroup,
+            (result: ArrayBuffer | { [key: string]: any }) => {
+            // binary:true => dostaniemy ArrayBuffer
+            const glbBuffer = result as ArrayBuffer;
+            const blob = new Blob([glbBuffer], { type: 'model/gltf-binary' });
+        
+            // Przygotuj nazwę pliku: "<nazwaModelu>_<yyyyMMdd_HHmmss>.glb"
+            const nameBase =
+                (this.loadedGroup!.name || 'model').replace(/[^a-z0-9_-]/gi, '_');
+            const stamp = new Date()
+                .toISOString()
+                .replace(/[:T]/g, '')
+                .split('.')[0]; // 20250702_143512
+            const fileName = `${nameBase}_${stamp}.glb`;
+        
+            // „Sztuczny” klik w <a download> – zero zależności
+            const link = document.createElement('a');
+            link.href = URL.createObjectURL(blob);
+            link.download = fileName;
+            link.click();
+            URL.revokeObjectURL(link.href);
+        
+            console.log(`✔️  Zapisano ${fileName} (${(blob.size / 1024).toFixed(1)} KB)`);
+            },
+            (error) => {
+            console.error('❌ GLTFExporter error:', error);
+            alert('Błąd podczas eksportu. Sprawdź konsolę.');
+            },
+            options
+        );
     }
 
     //----------------------------------------------------------
@@ -326,12 +381,23 @@ class App {
         tex.flipY = false;
     
         // POPRAWKA: Lepsze dopasowywanie nazw plików
-        const fileName = file.name.toLowerCase();
-        const fileBaseName = fileName.split('.')[0]; // nazwa bez rozszerzenia
         let applied = false;
     
-        console.log(`Looking for matches for: "${fileName}" (base: "${fileBaseName}")`);
-    
+        const equivExt: Record<string,string> = { jpg:'ozj', ozj:'jpg', tga:'ozt', ozt:'tga' };
+
+        const fileName  = file.name.toLowerCase();
+        const fileBase  = fileName.replace(/\.[^.]+$/, '');        // bez kropki i rozszerzenia
+        const fileExt   = fileName.split('.').pop()!;
+        
+        function normalizeWanted(path: string): { base:string; ext:string } {
+            const name = path.split(/[\\/]/).pop()!.toLowerCase(); // “baron01.jpg”
+            const ext  = name.split('.').pop()!;
+            const base = name.replace(/\.[^.]+$/, '');
+            return { base, ext };
+        }
+            
+        console.log(`Looking for matches for: "${fileName}" (base: "${fileBase}")`);
+            
         this.loadedGroup.traverse(obj => {
             if ((obj as THREE.Mesh).isMesh && obj.userData.texturePath) {
             const wantedPath = obj.userData.texturePath as string;
@@ -345,11 +411,13 @@ class App {
             // 2. Nazwa bazowa (bez rozszerzenia)  
             // 3. Czy wymagana ścieżka kończy się naszą nazwą
             // 4. Czy nasza nazwa zawiera wymaganą nazwę bazową
-            const isMatch = 
-                wantedLower.includes(fileName) ||           // dokładna nazwa
-                wantedLower.includes(fileBaseName) ||       // nazwa bazowa
-                fileName.includes(wantedBaseName) ||        // odwrotnie
-                fileBaseName === wantedBaseName;            // dokładne dopasowanie bazy
+            const { base:wantedBase, ext:wantedExt } = normalizeWanted(wantedPath);
+
+            const extMatch =
+                  wantedExt === fileExt                // identyczne
+               || equivExt[wantedExt] === fileExt;     // równoważne (.jpg↔.ozj, .tga↔.ozt)
+            
+            const isMatch = extMatch && wantedBase === fileBase;  // baza musi być 1-do-1
                 
             if (isMatch) {
                 const mat = (obj as THREE.Mesh).material as THREE.MeshPhongMaterial;
@@ -402,19 +470,24 @@ class App {
     private setupAnimations(model: THREE.Group) {
         this.mixer = new THREE.AnimationMixer(model);
         this.currentAction = null;
-
+    
         const animBox = document.getElementById('animations-container')!;
         const speedSlider = document.getElementById('speed-slider') as HTMLInputElement;
-
+    
         animBox.innerHTML = '';
-
+    
         if (!model.animations.length) {
             animBox.textContent = 'Brak animacji w tym modelu.';
             return;
         }
-
+    
         model.animations.forEach((clip, i) => {
             const btn = document.createElement('button');
+    
+            /* -------- DODAJ TĘ LINIĘ -------- */
+            btn.classList.add('animation-btn');
+            /* -------------------------------- */
+    
             btn.textContent = `Animacja ${i}`;
             btn.onclick = () => {
                 this.mixer!.stopAllAction();
