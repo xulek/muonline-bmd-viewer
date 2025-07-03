@@ -1,4 +1,4 @@
-<!DOCTYPE html>
+'''<!DOCTYPE html>
 <html lang="en">
 
 <head>
@@ -6,7 +6,7 @@
   <link rel="icon" type="image/svg+xml" href="/vite.svg" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>MU Online BMD Viewer (Three.js)</title>
-  <script type="module" crossorigin src="/muonline-bmd-viewer/assets/index-45vi5s_f.js"></script>
+  <script type="module" crossorigin src="/muonline-bmd-viewer/assets/index-CcwVEQMN.js"></script>
   <link rel="stylesheet" crossorigin href="/muonline-bmd-viewer/assets/index-CxPS7E1u.css">
 </head>
 
@@ -20,33 +20,32 @@
   <div class="sidebar" id="sidebar">
     <div class="sidebar-content">
       <div class="sidebar-header">
-        <h2 class="sidebar-title">Kontrolki</h2>
+        <h2 class="sidebar-title">Controls</h2>
       </div>
 
       <!-- File loading section -->
       <div class="control-section">
-        <h3>📁 Ładowanie plików</h3>
+        <h3>📁 File Loading</h3>
         <div class="drop-zone" id="bmd-drop-zone">
-          <p>Przeciągnij plik <strong>.bmd</strong> tutaj lub kliknij, aby wybrać</p>
+          <p>Drag and drop a <strong>.bmd</strong> file here or click to select</p>
           <input type="file" id="bmd-file-input" accept=".bmd" style="display: none;" />
         </div>
       </div>
 
       <!-- Export section -->
       <div class="control-section" id="export-controls">
-        <h3>💾 Eksport</h3>
-        <button id="export-glb-btn" class="modern-btn animation-btn">Eksportuj do GLB</button>
-        <!-- EKSPORT -->
-        <button id="export-textures-btn" disabled>Eksportuj tekstury (PNG)</button>
+        <h3>💾 Export</h3>
+        <button id="export-glb-btn" class="modern-btn animation-btn">Export to GLB</button>
+        <button id="export-textures-btn" disabled>Export textures (PNG)</button>
       </div>
 
       <!-- Texture loading section -->
       <div class="control-section" id="texture-controls" style="display: none;">
-        <h3>🎨 Tekstury</h3>
+        <h3>🎨 Textures</h3>
         <p id="texture-info-text" style="color: var(--text-secondary); font-size: 0.9rem; margin-bottom: 1rem;"></p>
         <div class="drop-zone" id="texture-drop-zone">
-          <p>Przeciągnij <strong>jedną lub wiele</strong> tekstur
-            (.jpg, .png, .tga, .ozj, .ozt) tutaj lub kliknij, aby wybrać</p>
+          <p>Drag and drop <strong>one or more</strong> textures
+            (.jpg, .png, .tga, .ozj, .ozt) here or click to select</p>
           <input type="file" id="texture-file-input" accept=".jpg,.jpeg,.png,.tga,.ozt,.ozj" multiple
             style="display: none;" />
         </div>
@@ -54,11 +53,11 @@
 
       <!-- Animation controls -->
       <div class="control-section">
-        <h3>🎬 Animacja</h3>
+        <h3>🎬 Animation</h3>
 
         <div class="slider-control">
           <div class="slider-label">
-            <span>Prędkość</span>
+            <span>Speed</span>
             <span class="slider-value" id="speed-value">0.20x</span>
           </div>
           <input type="range" id="speed-slider" class="modern-slider" min="0.1" max="2.0" step="0.1" value="0.2">
@@ -66,38 +65,38 @@
 
         <div class="checkbox-control">
           <input type="checkbox" id="auto-rotate-checkbox" class="modern-checkbox" checked>
-          <label for="auto-rotate-checkbox">Obrót automatyczny</label>
+          <label for="auto-rotate-checkbox">Auto-rotate</label>
         </div>
       </div>
 
       <!-- Scale control -->
       <div class="control-section">
-        <h3>🔍 Skala</h3>
+        <h3>🔍 Scale</h3>
         <div class="slider-control">
           <div class="slider-label">
-            <span>Rozmiar</span>
+            <span>Size</span>
             <span class="slider-value" id="scale-value">1.00x</span>
           </div>
           <input type="range" id="scale-slider" class="modern-slider" min="0.1" max="5.0" step="0.1" value="1.0">
         </div>
 
-        <!-- Potrzebne dla kompatybilności z main.ts -->
+        <!-- Needed for compatibility with main.ts -->
         <div class="speed-control" style="display: none;">
-          <label id="speed-label" for="speed-slider">Prędkość: 1.00x</label>
+          <label id="speed-label" for="speed-slider">Speed: 1.00x</label>
         </div>
         <div class="scale-control" style="display: none;">
-          <label id="scale-label" for="scale-slider">Skala: 1.00x</label>
+          <label id="scale-label" for="scale-slider">Scale: 1.00x</label>
         </div>
         <div class="auto-rotate-control" style="display: none;"></div>
       </div>
 
       <!-- Visualization -->
       <div class="control-section">
-        <h3>👁️ Widok</h3>
+        <h3>👁️ View</h3>
 
         <div class="checkbox-control">
           <input type="checkbox" id="show-skeleton-checkbox" class="modern-checkbox">
-          <label for="show-skeleton-checkbox">Pokaż szkielet</label>
+          <label for="show-skeleton-checkbox">Show Skeleton</label>
         </div>
 
         <div class="checkbox-control">
@@ -108,50 +107,49 @@
 
       <!-- Frame lock controls -->
       <div class="control-section" id="frame-lock-controls" style="display:none">
-        <h3>🔒 Blokada klatki</h3>
+        <h3>🔒 Frame Lock</h3>
         <div class="checkbox-control">
           <input type="checkbox" id="lock-frame-checkbox" class="modern-checkbox">
-          <label for="lock-frame-checkbox">Zablokuj na klatce</label>
+          <label for="lock-frame-checkbox">Lock on frame</label>
         </div>
         <div style="display: flex; gap: 0.5rem; align-items: center;">
           <input type="number" id="lock-frame-input" class="frame-input" value="0" min="0" step="1">
-          <button id="lock-current-btn" class="lock-btn" title="Ustaw na bieżącą klatkę">
-            ⇥ bieżąca
+          <button id="lock-current-btn" class="lock-btn" title="Set to current frame">
+            ⇥ current
           </button>
         </div>
       </div>
 
       <!-- Diagnostics -->
       <div class="control-section" id="diagnostics-panel">
-        <h3>📊 Diagnostyka</h3>
-        <p>Animacje: <span id="diag-animations-count">0</span></p>
-        <p>Akcje (klipy): <span id="diag-actions-count">0</span></p>
-        <p>Klatki w akcji: <span id="diag-animation-keys">0</span></p>
-        <p>Aktualna klatka: <span id="diag-current-frame">N/A</span></p>
-        <p>Kości: <span id="diag-bones-count">0</span></p>
-        <p>Meshe: <span id="diag-meshes-count">0</span></p>
+        <h3>📊 Diagnostics</h3>
+        <p>Actions (clips): <span id="diag-actions-count">0</span></p>
+        <p>Frames in action: <span id="diag-animation-keys">0</span></p>
+        <p>Current frame: <span id="diag-current-frame">N/A</span></p>
+        <p>Bones: <span id="diag-bones-count">0</span></p>
+        <p>Meshes: <span id="diag-meshes-count">0</span></p>
         <p>FPS: <span id="diag-fps">0</span></p>
       </div>
 
       <!-- Mesh blending -->
       <div class="control-section" id="blending-controls" style="display:none">
-        <h3>🌈 Blending meshy</h3>
+        <h3>🌈 Mesh Blending</h3>
         <div id="blending-container"></div>
       </div>
 
       <!-- Background color and brightness control -->
       <div class="control-section">
-        <h3>🎨 Tło</h3>
+        <h3>🎨 Background</h3>
 
-        <!-- KOLOR TŁA -->
+        <!-- BACKGROUND COLOR -->
         <div class="background-control">
-          <label for="bg-color-input">Kolor tła:</label>
+          <label for="bg-color-input">Background color:</label>
           <input type="color" id="bg-color-input" value="#1a1a1a">
         </div>
 
-        <!-- JASNOŚĆ -->
+        <!-- BRIGHTNESS -->
         <div class="brightness-control">
-          <label id="brightness-label" for="brightness-slider">Jasność: 1.00×</label>
+          <label id="brightness-label" for="brightness-slider">Brightness: 1.00×</label>
           <input type="range" id="brightness-slider" min="0.1" max="2.0" step="0.1" value="1.0">
         </div>
       </div>
@@ -162,10 +160,10 @@
   <div class="main-content" id="main-content">
     <div class="header">
       <h1>MU Online BMD Viewer</h1>
-      <p>Nowoczesny viewer plików BMD z Three.js</p>
+      <p>A modern BMD file viewer with Three.js</p>
     </div>
 
-    <div id="status">Gotowy. Otwórz panel kontrolek, aby rozpocząć.</div>
+    <div id="status">Ready. Open the control panel to begin.</div>
 
     <div id="canvas-container"></div>
     <div id="animations-container"></div>
@@ -185,7 +183,9 @@
     }
 
     sidebarToggle.addEventListener('click', toggleSidebar);
-    closeSidebar.addEventListener('click', toggleSidebar);
+    if(closeSidebar) {
+      closeSidebar.addEventListener('click', toggleSidebar);
+    }
 
     // Update slider values and original labels for compatibility
     const speedSlider = document.getElementById('speed-slider');
@@ -199,7 +199,7 @@
       const value = e.target.value;
       speedValue.textContent = value + 'x';
       if (speedLabel) {
-        speedLabel.textContent = `Prędkość: ${parseFloat(value).toFixed(2)}x`;
+        speedLabel.textContent = `Speed: ${parseFloat(value).toFixed(2)}x`;
       }
     });
 
@@ -207,7 +207,7 @@
       const value = e.target.value;
       scaleValue.textContent = value + 'x';
       if (scaleLabel) {
-        scaleLabel.textContent = `Skala: ${parseFloat(value).toFixed(2)}x`;
+        scaleLabel.textContent = `Scale: ${parseFloat(value).toFixed(2)}x`;
       }
     });
 
@@ -219,10 +219,9 @@
 
     // BMD file handlers
     bmdDropZone.addEventListener('click', (e) => {
-      // nie reaguj, jeśli klik pochodził z samego inputa
       if (e.target === bmdFileInput) return;
       bmdFileInput.click();
-      e.stopPropagation();      // zatrzymuje drugi przebieg
+      e.stopPropagation();
     });
     bmdDropZone.addEventListener('dragover', (e) => {
       e.preventDefault();
@@ -234,7 +233,6 @@
     bmdDropZone.addEventListener('drop', (e) => {
       e.preventDefault();
       bmdDropZone.classList.remove('drag-over');
-      // Handle file drop logic here
     });
 
     // Texture file handlers
@@ -249,17 +247,14 @@
     textureDropZone.addEventListener('drop', (e) => {
       e.preventDefault();
       textureDropZone.classList.remove('drag-over');
-      // Handle texture file drop logic here
     });
 
     // Animation buttons
     document.addEventListener('click', (e) => {
       if (e.target.classList.contains('animation-btn')) {
-        // Remove active class from all buttons
         document.querySelectorAll('.animation-btn').forEach(btn => {
           btn.classList.remove('active');
         });
-        // Add active class to clicked button
         e.target.classList.add('active');
       }
     });
@@ -279,4 +274,4 @@
   </script>
 </body>
 
-</html>
+</html>'''
