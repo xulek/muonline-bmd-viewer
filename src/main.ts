@@ -189,23 +189,23 @@ class App {
             this.applyLockedFrame();
         });
 
-        const setupDropZone = (zone: HTMLElement, input: HTMLInputElement, onFile: (file: File) => void) => {
+        const setupDropZone = (zone: HTMLElement, input: HTMLInputElement, onFiles: (files: FileList) => void) => {
             zone.addEventListener('click', () => input.click());
             zone.addEventListener('dragover', e => { e.preventDefault(); zone.classList.add('drag-over'); });
             zone.addEventListener('dragleave', () => zone.classList.remove('drag-over'));
             zone.addEventListener('drop', e => {
                 e.preventDefault();
                 zone.classList.remove('drag-over');
-                if (e.dataTransfer?.files.length) onFile(e.dataTransfer.files[0]);
+                if (e.dataTransfer?.files.length) onFiles(e.dataTransfer.files);
             });
             input.addEventListener('change', e => {
-                const f = (e.target as HTMLInputElement).files?.[0];
-                if (f) onFile(f);
+                const list = (e.target as HTMLInputElement).files;
+                if (list?.length) onFiles(list);
             });
         };
 
-        setupDropZone(bmdZone, bmdInput, this.handleBmdFile);
-        setupDropZone(texZone, texInput, this.handleTextureFile);
+        setupDropZone(bmdZone, bmdInput, files => this.handleBmdFile(files[0]));
+        setupDropZone(texZone, texInput, files => this.handleMultipleTextureFiles(files));
 
         // === Pokaż / ukryj szkielet =========================================
         showSkeletonEl.addEventListener('change', () => {
@@ -252,6 +252,11 @@ class App {
         this.bmdFile = file;
         document.querySelector('#bmd-drop-zone p')!.textContent = `Wybrano: ${file.name}`;
         this.loadAndDisplayModel();
+    }
+
+    /** Ładuje każdą teksturę z listy */
+    private handleMultipleTextureFiles = (files: FileList | File[]) => {
+        Array.from(files).forEach(f => this.loadAndApplyTexture(f));
     }
 
     private handleTextureFile = (file: File) => {
