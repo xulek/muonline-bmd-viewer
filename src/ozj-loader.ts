@@ -105,37 +105,32 @@ async function ozjToPng(buf: ArrayBuffer, jpgStart: number): Promise<string> {
 /* ----------------------------------------------------------------
  *  OZT  (surowe RGBA, bottom-up) → PNG
  * -------------------------------------------------------------- */
+//  OZT  (surowe BGRA, bottom-up) → PNG
 function oztToPng(buf: ArrayBuffer, nx: number, ny: number): string {
   const src    = new Uint8Array(buf);
-  let   offset = 22; // 16 (header) + 6 (nx, ny, depth, u1)
+  let   offset = 22;                   // HEADER(16) + nx/ny/depth/u1(6)
 
   const cvs = Object.assign(document.createElement('canvas'),
                { width: nx, height: ny });
   const ctx = cvs.getContext('2d')!;
   const img = ctx.createImageData(nx, ny);
-  const dst = img.data; // RGBA dla Canvas
+  const dst = img.data;                // RGBA dla Canvas
 
-  // POPRAWKA: Przepisujemy piksel po pikselu zgodnie z logiką C#
   for (let y = 0; y < ny; y++) {
-    // bottom-up: ostatni rząd w pliku → pierwszy w canvas
-    const canvasRow = (ny - 1 - y) * nx * 4;
-    
+    const rowStart = (ny - 1 - y) * nx * 4;   // bottom-up
     for (let x = 0; x < nx; x++) {
-      // Czytamy RGBA z pliku
-      const r = src[offset++];
-      const g = src[offset++]; 
-      const b = src[offset++];
-      const a = src[offset++];
-      
-      // Zapisujemy do canvas RGBA
-      const pixelIndex = canvasRow + x * 4;
-      dst[pixelIndex    ] = r;
-      dst[pixelIndex + 1] = g;
-      dst[pixelIndex + 2] = b;
-      dst[pixelIndex + 3] = a;
+      const b = src[offset++];          // 1️⃣ B
+      const g = src[offset++];          // 2️⃣ G
+      const r = src[offset++];          // 3️⃣ R   ← zamieniamy kolejność
+      const a = src[offset++];          // 4️⃣ A
+
+      const i = rowStart + x * 4;
+      dst[i    ] = r;                   // R
+      dst[i + 1] = g;                   // G
+      dst[i + 2] = b;                   // B
+      dst[i + 3] = a;                   // A
     }
   }
-
   ctx.putImageData(img, 0, 0);
   return cvs.toDataURL('image/png');
 }
