@@ -6,7 +6,7 @@
   <link rel="icon" type="image/svg+xml" href="/vite.svg" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>MU Online BMD Viewer (Three.js)</title>
-  <script type="module" crossorigin src="/muonline-bmd-viewer/assets/index-CcwVEQMN.js"></script>
+  <script type="module" crossorigin src="/muonline-bmd-viewer/assets/index-Cxm5uZVl.js"></script>
   <link rel="stylesheet" crossorigin href="/muonline-bmd-viewer/assets/index-CxPS7E1u.css">
 </head>
 
@@ -36,7 +36,7 @@
       <div class="control-section" id="export-controls">
         <h3>💾 Export</h3>
         <button id="export-glb-btn" class="modern-btn animation-btn">Export to GLB</button>
-        <button id="export-textures-btn" disabled>Export textures (PNG)</button>
+        <button id="export-textures-btn" disabled class="modern-btn animation-btn">Export textures (PNG)</button>
       </div>
 
       <!-- Texture loading section -->
@@ -218,11 +218,11 @@
     const textureFileInput = document.getElementById('texture-file-input');
 
     // BMD file handlers
-    bmdDropZone.addEventListener('click', (e) => {
-      if (e.target === bmdFileInput) return;
-      bmdFileInput.click();
-      e.stopPropagation();
-    });
+    // bmdDropZone.addEventListener('click', (e) => {
+    //   if (e.target === bmdFileInput) return;
+    //   bmdFileInput.click();
+    //   e.stopPropagation();
+    // });
     bmdDropZone.addEventListener('dragover', (e) => {
       e.preventDefault();
       bmdDropZone.classList.add('drag-over');
@@ -236,7 +236,7 @@
     });
 
     // Texture file handlers
-    textureDropZone.addEventListener('click', () => textureFileInput.click());
+    // textureDropZone.addEventListener('click', () => textureFileInput.click());
     textureDropZone.addEventListener('dragover', (e) => {
       e.preventDefault();
       textureDropZone.classList.add('drag-over');
