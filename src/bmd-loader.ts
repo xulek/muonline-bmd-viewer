@@ -210,6 +210,7 @@ export class BMDLoader {
             geometry.setAttribute('skinWeight', new THREE.Float32BufferAttribute(skinWeights, 4));
             
             const skinnedMesh = new THREE.SkinnedMesh(geometry, material);
+            skinnedMesh.name = `mesh_${group.children.length}`;
             skinnedMesh.userData.texturePath = bmdMesh.texturePath;
             skinnedMesh.bind(skeleton);
             group.add(skinnedMesh);

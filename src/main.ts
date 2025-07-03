@@ -53,6 +53,8 @@ class App {
 
     private readonly bmdLoader = new BMDLoader();
 
+    private meshRefs: THREE.Mesh[] = [];
+
     constructor() {
         console.log('%c[App] constructor', 'color:#0f0');
         this.initThree();
@@ -334,6 +336,13 @@ class App {
                 }
             });
 
+            // --- meshRefs & blending UI ---
+            this.meshRefs = [];
+            group.traverse(obj => {
+                if ((obj as any).isMesh) this.meshRefs.push(obj as THREE.Mesh);
+            });
+            this.buildBlendingUI();
+
         } catch (err) {
             console.error('‼️ loader.load() ERROR', err);
             statusEl.textContent = `Błąd: ${(err as Error).message}`;
@@ -342,7 +351,61 @@ class App {
             console.groupEnd();
         }
     }
-    
+
+    // --- Blending UI ---
+    private buildBlendingUI() {
+        const box   = document.getElementById('blending-controls')!;
+        const list  = document.getElementById('blending-container')!;
+        list.innerHTML = '';
+
+        // mapujemy czytelną nazwę → stała three.js
+        const modes: Record<string, number> = {
+            'Opaque':     THREE.NoBlending,
+            'Normal':     THREE.NormalBlending,
+            'Additive':   THREE.AdditiveBlending,
+            'Multiply':   THREE.MultiplyBlending,
+            'Subtractive':THREE.SubtractiveBlending,
+        };
+
+        this.meshRefs.forEach((mesh, idx) => {
+            const row   = document.createElement('div');
+            row.style.display = 'flex';
+            row.style.alignItems = 'center';
+            row.style.gap = '0.5rem';
+            row.style.marginBottom = '0.75rem';
+
+            const label = document.createElement('span');
+            label.textContent = mesh.name || `Mesh ${idx}`;
+            label.style.flex = '1';
+
+            const select = document.createElement('select');
+            Object.keys(modes).forEach(k => {
+                const opt = document.createElement('option');
+                opt.value = k;
+                opt.text  = k;
+                select.appendChild(opt);
+            });
+
+            // ustaw początkową wartość
+            const cur = Object.entries(modes).find(([,v]) => v === (mesh.material as THREE.Material).blending);
+            select.value = cur ? cur[0] : 'Normal';
+
+            // reakcja na zmianę
+            select.addEventListener('change', () => {
+                const mat = mesh.material as THREE.Material;
+                mat.blending    = modes[select.value] as THREE.Blending;
+                mat.transparent = mat.blending !== THREE.NoBlending;
+                mat.depthWrite  = mat.blending === THREE.NoBlending;
+                mat.needsUpdate = true;
+            });
+
+            row.append(label, select);
+            list.appendChild(row);
+        });
+
+        // pokaż sekcję dopiero gdy mamy coś do wyświetlenia
+        (box as HTMLElement).style.display = this.meshRefs.length ? 'block' : 'none';
+    }
     //----------------------------------------------------------
     // ### NOWA METODA ### Czyszczenie sceny
     //----------------------------------------------------------
