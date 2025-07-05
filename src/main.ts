@@ -58,6 +58,7 @@ class App {
     private readonly bmdLoader = new BMDLoader();
 
     private meshRefs: THREE.Mesh[] = [];
+    private attachments: THREE.Group[] = [];
 
     constructor() {
         console.log('%c[App] constructor', 'color:#0f0');
@@ -233,6 +234,27 @@ class App {
             });
         });
 
+        // === attach model to bone (id or bone name) ===============================
+        const attachInput = document.getElementById('attach-bmd-input')  as HTMLInputElement;
+        const attachBone  = document.getElementById('attach-bone-input') as HTMLInputElement;
+        const attachBtn   = document.getElementById('attach-bmd-btn')    as HTMLButtonElement;
+
+        attachBtn.addEventListener('click', () => {
+            const file = attachInput.files?.[0];
+            const ref  = attachBone.value.trim();
+            if (!file || !ref) {
+                alert('Select the BMD file and enter the name or ID of the bone.');
+                return;
+            }
+
+            const idx = parseInt(ref, 10);
+            if (!isNaN(idx)) {
+                this.attachModelToBone(file, idx);
+            } else {
+                this.attachModelToBone(file, ref);
+            }
+        });
+
         console.groupEnd();
     }
 
@@ -355,6 +377,7 @@ class App {
             if (skeletonHelper) {
                 this.scene.remove(skeletonHelper);
                 (skeletonHelper.geometry as THREE.BufferGeometry).dispose();
+                skeletonHelper = null;
             }
             skeletonHelper = new THREE.SkeletonHelper(group);
             skeletonHelper.visible = showSkeletonEl.checked;
@@ -499,8 +522,9 @@ class App {
         const textureControls = document.getElementById('texture-controls')!;
         const textureInfo = document.getElementById('texture-info-text')!;
         
-        if (this.requiredTextures.length > 0 && this.requiredTextures[0]) {
-            textureInfo.textContent = this.requiredTextures.join(', ');
+        const list = Array.from(new Set(this.requiredTextures));
+        if (list.length > 0 && list[0]) {
+            textureInfo.textContent = list.join(', ');
             textureControls.style.display = 'block';
         } else {
             textureInfo.textContent = "This model does not require textures.";
@@ -828,6 +852,72 @@ private exportTextures() {
       this.renderer.toneMappingExposure = value;
       if (this.ambientLight)    this.ambientLight.intensity   = 0.7 * value;
       if (this.directionalLight) this.directionalLight.intensity = 1.5 * value;
+    }
+
+    private async attachModelToBone(
+        file: File,
+        boneRef: number | string,
+    ): Promise<void> {
+
+        if (!this.loadedGroup) {
+            alert('First load the base character model.');
+            return;
+        }
+
+        const skinned = this.loadedGroup
+            .getObjectByProperty('type', 'SkinnedMesh') as THREE.SkinnedMesh | undefined;
+
+        if (!skinned) {
+            alert('The base model does not include a skeleton.');
+            return;
+        }
+
+        const bones = skinned.skeleton.bones;
+
+        let target: THREE.Bone | null = null;
+
+        if (typeof boneRef === 'number') {
+            if (boneRef < 0 || boneRef >= bones.length) {
+                alert(`The ${boneRef} index is out of range (0 - ${bones.length - 1}).`);
+                return;
+            }
+            target = bones[boneRef];
+        } else {
+            target = this.loadedGroup.getObjectByName(boneRef) as THREE.Bone | null;
+            if (!target) {
+                alert(`The bone named “${boneRef}” was not found.`);
+                return;
+            }
+        }
+
+        const { group, requiredTextures } =
+            await this.bmdLoader.load(await file.arrayBuffer());
+
+        group.name = `attachment_${boneRef}_${this.attachments.length}`;
+
+        group.position.set(0, 0, 0);
+        group.rotation.set(0, 0, 0);
+        group.scale.set(1, 1, 1);
+
+        target.add(group);
+        this.attachments.push(group);
+
+        this.requiredTextures.push(...requiredTextures);
+        this.updateTextureUI();
+
+        if (skeletonHelper) {
+            this.scene.remove(skeletonHelper);
+            (skeletonHelper.geometry as THREE.BufferGeometry).dispose();
+        }
+        skeletonHelper = new THREE.SkeletonHelper(this.loadedGroup);
+        skeletonHelper.visible = showSkeletonEl.checked;
+        this.scene.add(skeletonHelper);
+
+        this.meshRefs = [];
+        this.loadedGroup.traverse(obj => {
+            if ((obj as any).isMesh) this.meshRefs.push(obj as THREE.Mesh);
+        });
+        this.buildBlendingUI();
     }
 }
 

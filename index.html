@@ -54,6 +54,15 @@
         </div>
       </div>
 
+      <!-- Attachment loading section -->
+      <div class="control-section">
+        <h3>🔗 Attach Model</h3>
+        <input type="file" id="attach-bmd-input" accept=".bmd">
+        <input type="text" id="attach-bone-input" placeholder="Bone id" class="frame-input"
+          style="margin-top:0.5rem;">
+        <button id="attach-bmd-btn" class="modern-btn animation-btn" style="margin-top:0.5rem;">Attach</button>
+      </div>
+
       <!-- Animation controls -->
       <div class="control-section">
         <h3>🎬 Animation</h3>
@@ -186,7 +195,7 @@
     }
 
     sidebarToggle.addEventListener('click', toggleSidebar);
-    if(closeSidebar) {
+    if (closeSidebar) {
       closeSidebar.addEventListener('click', toggleSidebar);
     }
 
