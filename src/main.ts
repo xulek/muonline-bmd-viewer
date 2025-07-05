@@ -235,9 +235,10 @@ class App {
         });
 
         // === attach model to bone (id or bone name) ===============================
-        const attachInput = document.getElementById('attach-bmd-input')  as HTMLInputElement;
-        const attachBone  = document.getElementById('attach-bone-input') as HTMLInputElement;
-        const attachBtn   = document.getElementById('attach-bmd-btn')    as HTMLButtonElement;
+        const attachInput      = document.getElementById('attach-bmd-input')   as HTMLInputElement;
+        const attachBone       = document.getElementById('attach-bone-input')  as HTMLInputElement;
+        const attachBtn        = document.getElementById('attach-bmd-btn')     as HTMLButtonElement;
+        const undoAttachBtn    = document.getElementById('undo-attach-btn')    as HTMLButtonElement;
 
         attachBtn.addEventListener('click', () => {
             const file = attachInput.files?.[0];
@@ -254,6 +255,8 @@ class App {
                 this.attachModelToBone(file, ref);
             }
         });
+
+        undoAttachBtn.addEventListener('click', () => this.undoLastAttachment());
 
         console.groupEnd();
     }
@@ -918,6 +921,50 @@ private exportTextures() {
             if ((obj as any).isMesh) this.meshRefs.push(obj as THREE.Mesh);
         });
         this.buildBlendingUI();
+    }
+
+    /** Remove the most recently attached model from the scene */
+    private undoLastAttachment() {
+        const last = this.attachments.pop();
+        if (!last) {
+            alert('No attachments to remove.');
+            return;
+        }
+
+        if (last.parent) {
+            last.parent.remove(last);
+        }
+
+        last.traverse(obj => {
+            if ((obj as THREE.Mesh).isMesh) {
+                (obj as THREE.Mesh).geometry.dispose();
+                const mat = (obj as THREE.Mesh).material;
+                if (Array.isArray(mat)) {
+                    mat.forEach(m => m.dispose());
+                } else {
+                    if ((mat as any).map) (mat as any).map.dispose();
+                    (mat as THREE.Material).dispose();
+                }
+            }
+        });
+
+        if (skeletonHelper) {
+            this.scene.remove(skeletonHelper);
+            (skeletonHelper.geometry as THREE.BufferGeometry).dispose();
+        }
+        if (this.loadedGroup) {
+            skeletonHelper = new THREE.SkeletonHelper(this.loadedGroup);
+            skeletonHelper.visible = showSkeletonEl.checked;
+            this.scene.add(skeletonHelper);
+
+            this.meshRefs = [];
+            this.loadedGroup.traverse(obj => {
+                if ((obj as any).isMesh) this.meshRefs.push(obj as THREE.Mesh);
+            });
+        }
+
+        this.buildBlendingUI();
+        this.updateTextureUI();
     }
 }
 
