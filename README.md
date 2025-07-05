@@ -7,6 +7,7 @@ A modern, web-based 3D model viewer for `.bmd` files, the format used in the gam
 - **BMD Model Loading**: Load `.bmd` files via a simple drag-and-drop interface.
 - **Texture Support**: Apply various texture formats, including `.jpg`, `.png`, `.tga`, `.ozj`, and `.ozt`.
 - **Animation Playback**: View all embedded animations with adjustable playback speed.
+- **External Animations**: Load bone animations from a different `.bmd` file.
 - **GLB Export**: Export models and their animations to the standard `.glb` format for use in other 3D software like Blender or Unity.
 - **Texture Export**: Export all applied textures to `.png` format.
 - **Interactive Controls**:

@@ -25,6 +25,7 @@ class App {
 
     // ### CHANGE ### We store the application state
     private bmdFile: File | null = null;
+    private animBmdFile: File | null = null;
     private loadedGroup: THREE.Group | null = null;
     private requiredTextures: string[] = [];
     private exportBtn!: HTMLButtonElement;        // ← new button
@@ -107,10 +108,12 @@ class App {
     private initUI() {
         console.groupCollapsed('%c[App] initUI()', 'color:#0f0');
 
-        const bmdZone = document.getElementById('bmd-drop-zone')!;
-        const bmdInput = document.getElementById('bmd-file-input') as HTMLInputElement;
-        const texZone = document.getElementById('texture-drop-zone')!;
-        const texInput = document.getElementById('texture-file-input') as HTMLInputElement;
+        const bmdZone   = document.getElementById('bmd-drop-zone')!;
+        const bmdInput  = document.getElementById('bmd-file-input') as HTMLInputElement;
+        const animZone  = document.getElementById('anim-bmd-drop-zone')!;
+        const animInput = document.getElementById('anim-bmd-file-input') as HTMLInputElement;
+        const texZone   = document.getElementById('texture-drop-zone')!;
+        const texInput  = document.getElementById('texture-file-input') as HTMLInputElement;
         this.exportBtn = document.getElementById('export-textures-btn') as HTMLButtonElement;
         this.exportBtn.addEventListener('click', () => this.exportTextures());
         
@@ -208,6 +211,7 @@ class App {
         };
 
         setupDropZone(bmdZone, bmdInput, files => this.handleBmdFile(files[0]));
+        setupDropZone(animZone, animInput, files => this.handleAnimBmdFile(files[0]));
         setupDropZone(texZone, texInput, files => this.handleMultipleTextureFiles(files));
 
         // === Show / hide skeleton =========================================
@@ -255,6 +259,13 @@ class App {
         this.bmdFile = file;
         document.querySelector('#bmd-drop-zone p')!.textContent = `Selected: ${file.name}`;
         this.loadAndDisplayModel();
+    }
+
+    private handleAnimBmdFile = (file: File) => {
+        console.log(`[App] handleAnimBmdFile("${file.name}")`);
+        this.animBmdFile = file;
+        document.querySelector('#anim-bmd-drop-zone p')!.textContent = `Selected: ${file.name}`;
+        this.loadExternalAnimations();
     }
 
     /** Loads every texture from the list */
@@ -373,6 +384,34 @@ class App {
         } finally {
             console.timeEnd('loadAndDisplayModel');
             console.groupEnd();
+        }
+    }
+
+    /** Load animations from an external BMD file and apply them to the current model */
+    private async loadExternalAnimations() {
+        if (!this.loadedGroup || !this.animBmdFile) return;
+
+        try {
+            const buffer = await this.animBmdFile.arrayBuffer();
+            let skeleton: THREE.Skeleton | null = null;
+            this.loadedGroup.traverse(obj => {
+                if (!skeleton && (obj as THREE.SkinnedMesh).isSkinnedMesh) {
+                    skeleton = (obj as THREE.SkinnedMesh).skeleton;
+                }
+            });
+            if (!skeleton) {
+                console.warn('No skeleton found for external animations');
+                return;
+            }
+
+            const clips = this.bmdLoader.loadAnimationsFrom(buffer, skeleton);
+            if (clips.length) {
+                this.loadedGroup.animations = clips;
+                this.setupAnimations(this.loadedGroup);
+                document.getElementById('status')!.textContent = `Animations loaded from ${this.animBmdFile.name}`;
+            }
+        } catch (e) {
+            console.error('Failed to load external animations', e);
         }
     }
 

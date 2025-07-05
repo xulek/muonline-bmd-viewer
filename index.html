@@ -28,6 +28,11 @@
           <p>Drag and drop a <strong>.bmd</strong> file here or click to select</p>
           <input type="file" id="bmd-file-input" accept=".bmd" style="display: none;" />
         </div>
+
+        <div class="drop-zone" id="anim-bmd-drop-zone">
+          <p>Optional: load animations from another <strong>.bmd</strong> file</p>
+          <input type="file" id="anim-bmd-file-input" accept=".bmd" style="display: none;" />
+        </div>
       </div>
 
       <!-- Export section -->
@@ -212,6 +217,8 @@
     // File input handlers
     const bmdDropZone = document.getElementById('bmd-drop-zone');
     const bmdFileInput = document.getElementById('bmd-file-input');
+    const animBmdDropZone = document.getElementById('anim-bmd-drop-zone');
+    const animBmdFileInput = document.getElementById('anim-bmd-file-input');
     const textureDropZone = document.getElementById('texture-drop-zone');
     const textureFileInput = document.getElementById('texture-file-input');
 
@@ -231,6 +238,19 @@
     bmdDropZone.addEventListener('drop', (e) => {
       e.preventDefault();
       bmdDropZone.classList.remove('drag-over');
+    });
+
+    // Animation BMD file handlers
+    animBmdDropZone.addEventListener('dragover', (e) => {
+      e.preventDefault();
+      animBmdDropZone.classList.add('drag-over');
+    });
+    animBmdDropZone.addEventListener('dragleave', () => {
+      animBmdDropZone.classList.remove('drag-over');
+    });
+    animBmdDropZone.addEventListener('drop', (e) => {
+      e.preventDefault();
+      animBmdDropZone.classList.remove('drag-over');
     });
 
     // Texture file handlers
