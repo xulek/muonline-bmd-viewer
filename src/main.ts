@@ -505,70 +505,90 @@ class App {
         tex.flipY = false;
         tex.name  = file.name;
     
-        let applied = false;
-    
-        const equivExt: Record<string,string> = { jpg:'ozj', ozj:'jpg', tga:'ozt', ozt:'tga' };
+        // allow loading PNG/JPG in place of OZT/OZJ and vice versa
+        const equivExt: Record<string,string[]> = {
+            jpg:  ['ozj', 'jpeg'],
+            jpeg: ['ozj', 'jpg'],
+            ozj:  ['jpg', 'jpeg', 'png'],
+            png:  ['ozj', 'ozt'],
+            tga:  ['ozt', 'png'],
+            ozt:  ['tga', 'png'],
+        };
 
         const fileName  = file.name.toLowerCase();
         const fileBase  = fileName.replace(/\.[^.]+$/, '');
         const fileExt   = fileName.split('.').pop()!;
-        
+
         function normalizeWanted(path: string): { base:string; ext:string } {
             const name = path.split(/[\\/]/).pop()!.toLowerCase();
             const ext  = name.split('.').pop()!;
             const base = name.replace(/\.[^.]+$/, '');
             return { base, ext };
         }
-            
-        console.log(`Looking for matches for: "${fileName}" (base: "${fileBase}")`);
-            
+
+        const meshList: { mesh: THREE.Mesh; path: string; isMatch: boolean }[] = [];
         this.loadedGroup.traverse(obj => {
             if ((obj as THREE.Mesh).isMesh && obj.userData.texturePath) {
-            const wantedPath = obj.userData.texturePath as string;
-            const wantedLower = wantedPath.toLowerCase();
-            const wantedBaseName = wantedPath.split('/').pop()?.toLowerCase().split('.')[0] || '';
-            
-            console.log(`  Checking mesh texture: "${wantedPath}" (base: "${wantedBaseName}")`);
-            
-            const { base:wantedBase, ext:wantedExt } = normalizeWanted(wantedPath);
+                const wantedPath = obj.userData.texturePath as string;
+                const { base:wantedBase, ext:wantedExt } = normalizeWanted(wantedPath);
+                const extMatch =
+                    wantedExt === fileExt ||
+                    (equivExt[wantedExt]?.includes(fileExt)) ||
+                    (equivExt[fileExt]?.includes(wantedExt));
+                const isMatch = extMatch && wantedBase === fileBase;
+                meshList.push({ mesh: obj as THREE.Mesh, path: wantedPath, isMatch });
+            }
+        });
 
-            const extMatch =
-                  wantedExt === fileExt
-               || equivExt[wantedExt] === fileExt;
-            
-            const isMatch = extMatch && wantedBase === fileBase;
-                
-            if (isMatch) {
-                const mat = (obj as THREE.Mesh).material as THREE.MeshPhongMaterial;
-                
-                if (mat.map) {
-                console.log(`  Replacing existing texture on mesh`);
-                mat.map.dispose();
+        if (fileExt === 'ozj' || fileExt === 'ozt') {
+            let applied = false;
+            meshList.forEach(m => {
+                if (m.isMatch) {
+                    const mat = m.mesh.material as THREE.MeshPhongMaterial;
+                    if (mat.map) mat.map.dispose();
+                    mat.map = tex;
+                    mat.color.set(0xffffff);
+                    mat.needsUpdate = true;
+                    applied = true;
+                    if (this.exportBtn) this.exportBtn.disabled = false;
+                    console.log(`  \u2713 Applied "${file.name}" to mesh with texture: "${m.path}"`);
                 }
-                
+            });
+
+            if (!applied) {
+                console.log('❌ No matches found. Available texture paths:');
+                this.loadedGroup.traverse(obj => {
+                    if ((obj as THREE.Mesh).isMesh && obj.userData.texturePath) {
+                        console.log(`  - ${obj.userData.texturePath}`);
+                    }
+                });
+            }
+
+            status.textContent = applied
+                ? `Texture "${file.name}" loaded.`
+                : `No matching mesh found for "${file.name}". Check the console.`;
+        } else {
+            let promptMsg = `Apply texture "${file.name}" to which mesh?\n`;
+            meshList.forEach((m, i) => {
+                promptMsg += `${i}: ${m.mesh.name} (needs ${m.path})\n`;
+            });
+
+            const choiceStr = window.prompt(promptMsg, '');
+            const idx = choiceStr !== null ? parseInt(choiceStr, 10) : NaN;
+
+            if (!isNaN(idx) && meshList[idx]) {
+                const target = meshList[idx].mesh;
+                const mat = target.material as THREE.MeshPhongMaterial;
+                if (mat.map) mat.map.dispose();
                 mat.map = tex;
                 mat.color.set(0xffffff);
                 mat.needsUpdate = true;
-                applied = true;
                 if (this.exportBtn) this.exportBtn.disabled = false;
-                
-                console.log(`  ✓ Applied "${file.name}" to mesh with texture: "${wantedPath}"`);
+                status.textContent = `Texture "${file.name}" loaded.`;
+            } else {
+                status.textContent = `Texture "${file.name}" was not applied.`;
             }
-            }
-        });
-        
-        if (!applied) {
-            console.log('❌ No matches found. Available texture paths:');
-            this.loadedGroup.traverse(obj => {
-            if ((obj as THREE.Mesh).isMesh && obj.userData.texturePath) {
-                console.log(`  - ${obj.userData.texturePath}`);
-            }
-            });
         }
-    
-        status.textContent = applied
-            ? `Texture "${file.name}" loaded.`
-            : `No matching mesh found for "${file.name}". Check the console.`;
     
         } catch (e) {
         console.error('Texture load error:', e);
