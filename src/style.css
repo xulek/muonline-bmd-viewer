@@ -417,11 +417,9 @@ body::before {
   margin-right: auto;
 }
 
-/* Animation buttons */
+/* Animation dropdown */
 #animations-container {
   display: flex;
-  flex-wrap: wrap;
-  gap: 0.75rem;
   justify-content: center;
   margin-top: 2rem;
   max-width: 800px;
@@ -429,49 +427,44 @@ body::before {
   margin-right: auto;
 }
 
-.animation-btn {
+.animation-dropdown {
   background: var(--glass-bg);
   border: 1px solid var(--glass-border);
-  color: var(--text-secondary);
-  padding: 0.75rem 1.5rem;
+  color: var(--text-primary);
+  padding: 0.875rem 2.5rem 0.875rem 1.5rem;
   border-radius: 12px;
   cursor: pointer;
   transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
   font-weight: 500;
+  font-size: 0.95rem;
   backdrop-filter: blur(20px);
   position: relative;
-  overflow: hidden;
+  min-width: 250px;
+  appearance: none;
+  -webkit-appearance: none;
+  -moz-appearance: none;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'%3E%3Cpath fill='%2399a1b3' d='M6 8L0 0h12z'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 1rem center;
+  background-size: 12px 8px;
+  outline: none;
 }
 
-.animation-btn::before {
-  content: '';
-  position: absolute;
-  top: 0;
-  left: -100%;
-  width: 100%;
-  height: 100%;
-  background: var(--accent-gradient);
-  opacity: 0;
-  transition: all 0.3s ease;
-}
-
-.animation-btn:hover {
-  color: var(--text-primary);
+.animation-dropdown:hover {
   border-color: var(--accent-primary);
-  transform: translateY(-2px);
   box-shadow: var(--shadow-lg);
+  color: var(--text-primary);
 }
 
-.animation-btn:hover::before {
-  left: 0;
-  opacity: 0.1;
-}
-
-.animation-btn.active {
-  background: var(--accent-gradient);
+.animation-dropdown:focus {
   border-color: var(--accent-primary);
-  color: white;
-  box-shadow: 0 4px 16px rgba(99, 102, 241, 0.3);
+  box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.1), var(--shadow-lg);
+}
+
+.animation-dropdown option {
+  background: var(--bg-primary);
+  color: var(--text-primary);
+  padding: 0.5rem;
 }
 
 /* Diagnostics panel */
