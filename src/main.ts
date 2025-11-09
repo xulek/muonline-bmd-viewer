@@ -712,37 +712,55 @@ private exportTextures() {
     private setupAnimations(model: THREE.Group) {
         this.mixer = new THREE.AnimationMixer(model);
         this.currentAction = null;
-    
+
         const animBox = document.getElementById('animations-container')!;
         const speedSlider = document.getElementById('speed-slider') as HTMLInputElement;
-    
+
         animBox.innerHTML = '';
-    
+
         if (!model.animations.length) {
             animBox.textContent = 'No animations in this model.';
             return;
         }
-    
+
+        // Create dropdown select instead of multiple buttons
+        const select = document.createElement('select');
+        select.classList.add('animation-dropdown');
+        select.id = 'animation-select';
+
+        // Add placeholder option
+        const placeholderOption = document.createElement('option');
+        placeholderOption.textContent = 'Select Animation';
+        placeholderOption.value = '';
+        placeholderOption.disabled = true;
+        select.appendChild(placeholderOption);
+
+        // Add animation options
         model.animations.forEach((clip, i) => {
-            const btn = document.createElement('button');
-    
-            btn.classList.add('animation-btn');
-    
-            btn.textContent = `Animation ${i}`;
-            btn.onclick = () => {
-                this.mixer!.stopAllAction();
-                this.currentAction = this.mixer!.clipAction(clip);
-                const currentSpeed = parseFloat(speedSlider.value);
-                this.currentAction.setEffectiveTimeScale(currentSpeed);
-                this.currentAction.reset().play();
-                animBox.querySelectorAll('button').forEach(b => b.classList.remove('active'));
-                btn.classList.add('active');
-            };
-            animBox.appendChild(btn);
+            const option = document.createElement('option');
+            option.value = i.toString();
+            option.textContent = `Animation ${i}`;
+            select.appendChild(option);
         });
 
+        // Handle animation selection
+        select.onchange = () => {
+            const selectedIndex = parseInt(select.value);
+            if (isNaN(selectedIndex)) return;
+
+            const clip = model.animations[selectedIndex];
+            this.mixer!.stopAllAction();
+            this.currentAction = this.mixer!.clipAction(clip);
+            const currentSpeed = parseFloat(speedSlider.value);
+            this.currentAction.setEffectiveTimeScale(currentSpeed);
+            this.currentAction.reset().play();
+        };
+
+        animBox.appendChild(select);
+
         if (model.animations.length > 0) {
-            (animBox.querySelector('button') as HTMLButtonElement)?.click();
+            select.value = '0';
+            select.dispatchEvent(new Event('change'));
         }
         const lockBox   = document.getElementById('frame-lock-controls')!;
         lockBox.style.display =
