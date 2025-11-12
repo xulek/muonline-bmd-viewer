@@ -1,6 +1,7 @@
 // src/main.ts
 import * as THREE from 'three';
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
+import { VertexNormalsHelper } from 'three/examples/jsm/helpers/VertexNormalsHelper.js';
 import { BMDLoader, convertTgaToDataUrl } from './bmd-loader';
 import { convertOzjToDataUrl } from './ozj-loader';
 import { GLTFExporter } from 'three/examples/jsm/exporters/GLTFExporter.js';
@@ -8,8 +9,17 @@ import './style.css';
 
 // == View ==
 let skeletonHelper: THREE.SkeletonHelper | null = null;
+let boundingBoxHelper: THREE.BoxHelper | null = null;
+let axesHelper: THREE.AxesHelper | null = null;
+let normalsHelper: VertexNormalsHelper | null = null;
+let edgesGroup: THREE.Group | null = null;
+
 const showSkeletonEl = document.getElementById('show-skeleton-checkbox') as HTMLInputElement;
 const wireframeEl    = document.getElementById('wireframe-checkbox')    as HTMLInputElement;
+const boundingBoxEl  = document.getElementById('bounding-box-checkbox') as HTMLInputElement;
+const showAxesEl     = document.getElementById('show-axes-checkbox')    as HTMLInputElement;
+const showNormalsEl  = document.getElementById('show-normals-checkbox') as HTMLInputElement;
+const showEdgesEl    = document.getElementById('show-edges-checkbox')   as HTMLInputElement;
 
 class App {
     private scene!: THREE.Scene;
@@ -234,6 +244,26 @@ class App {
             });
         });
 
+        // === Bounding box toggle ============================================
+        boundingBoxEl.addEventListener('change', () => {
+            if (boundingBoxHelper) boundingBoxHelper.visible = boundingBoxEl.checked;
+        });
+
+        // === Show axes toggle ===============================================
+        showAxesEl.addEventListener('change', () => {
+            if (axesHelper) axesHelper.visible = showAxesEl.checked;
+        });
+
+        // === Show normals toggle ============================================
+        showNormalsEl.addEventListener('change', () => {
+            if (normalsHelper) normalsHelper.visible = showNormalsEl.checked;
+        });
+
+        // === Show edges toggle ==============================================
+        showEdgesEl.addEventListener('change', () => {
+            if (edgesGroup) edgesGroup.visible = showEdgesEl.checked;
+        });
+
         // === attach model to bone (id or bone name) ===============================
         const attachInput      = document.getElementById('attach-bmd-input')   as HTMLInputElement;
         const attachBone       = document.getElementById('attach-bone-input')  as HTMLInputElement;
@@ -385,6 +415,73 @@ class App {
             skeletonHelper = new THREE.SkeletonHelper(group);
             skeletonHelper.visible = showSkeletonEl.checked;
             this.scene.add(skeletonHelper);
+
+            // --- bounding box helper ---
+            if (boundingBoxHelper) {
+                this.scene.remove(boundingBoxHelper);
+                boundingBoxHelper.dispose();
+                boundingBoxHelper = null;
+            }
+            boundingBoxHelper = new THREE.BoxHelper(group, 0x00ff00);
+            boundingBoxHelper.visible = boundingBoxEl.checked;
+            this.scene.add(boundingBoxHelper);
+
+            // --- axes helper ---
+            if (axesHelper) {
+                this.scene.remove(axesHelper);
+                axesHelper.dispose();
+                axesHelper = null;
+            }
+            axesHelper = new THREE.AxesHelper(100);
+            axesHelper.visible = showAxesEl.checked;
+            group.add(axesHelper); // Add to group so it moves with the model
+
+            // --- normals helper ---
+            if (normalsHelper) {
+                this.scene.remove(normalsHelper);
+                normalsHelper.dispose();
+                normalsHelper = null;
+            }
+            // Create normals helper for all meshes
+            group.traverse(obj => {
+                if ((obj as any).isMesh && !normalsHelper) {
+                    // Only create for first mesh to avoid cluttering
+                    normalsHelper = new VertexNormalsHelper(obj as THREE.Mesh, 5, 0xff0000);
+                    normalsHelper.visible = showNormalsEl.checked;
+                    this.scene.add(normalsHelper);
+                }
+            });
+
+            // --- edges helper ---
+            if (edgesGroup) {
+                this.scene.remove(edgesGroup);
+                edgesGroup.traverse(obj => {
+                    if ((obj as any).isLine) {
+                        const line = obj as THREE.LineSegments;
+                        line.geometry.dispose();
+                        (line.material as THREE.Material).dispose();
+                    }
+                });
+                edgesGroup = null;
+            }
+            edgesGroup = new THREE.Group();
+            edgesGroup.name = 'edges_group';
+            group.traverse(obj => {
+                if ((obj as any).isMesh) {
+                    const mesh = obj as THREE.Mesh;
+                    const edges = new THREE.EdgesGeometry(mesh.geometry, 15); // threshold angle
+                    const line = new THREE.LineSegments(
+                        edges,
+                        new THREE.LineBasicMaterial({ color: 0xffffff })
+                    );
+                    line.position.copy(mesh.position);
+                    line.rotation.copy(mesh.rotation);
+                    line.scale.copy(mesh.scale);
+                    edgesGroup!.add(line);
+                }
+            });
+            edgesGroup.visible = showEdgesEl.checked;
+            this.scene.add(edgesGroup);
 
             // --- wireframe init ----
             group.traverse(obj => {
@@ -926,6 +1023,7 @@ private exportTextures() {
         this.requiredTextures.push(...requiredTextures);
         this.updateTextureUI();
 
+        // Refresh all visualization helpers
         if (skeletonHelper) {
             this.scene.remove(skeletonHelper);
             (skeletonHelper.geometry as THREE.BufferGeometry).dispose();
@@ -933,6 +1031,64 @@ private exportTextures() {
         skeletonHelper = new THREE.SkeletonHelper(this.loadedGroup);
         skeletonHelper.visible = showSkeletonEl.checked;
         this.scene.add(skeletonHelper);
+
+        if (boundingBoxHelper) {
+            this.scene.remove(boundingBoxHelper);
+            boundingBoxHelper.dispose();
+        }
+        boundingBoxHelper = new THREE.BoxHelper(this.loadedGroup, 0x00ff00);
+        boundingBoxHelper.visible = boundingBoxEl.checked;
+        this.scene.add(boundingBoxHelper);
+
+        if (axesHelper) {
+            this.scene.remove(axesHelper);
+            axesHelper.dispose();
+        }
+        axesHelper = new THREE.AxesHelper(100);
+        axesHelper.visible = showAxesEl.checked;
+        this.loadedGroup.add(axesHelper);
+
+        if (normalsHelper) {
+            this.scene.remove(normalsHelper);
+            normalsHelper.dispose();
+            normalsHelper = null;
+        }
+        this.loadedGroup.traverse(obj => {
+            if ((obj as any).isMesh && !normalsHelper) {
+                normalsHelper = new VertexNormalsHelper(obj as THREE.Mesh, 5, 0xff0000);
+                normalsHelper.visible = showNormalsEl.checked;
+                this.scene.add(normalsHelper);
+            }
+        });
+
+        if (edgesGroup) {
+            this.scene.remove(edgesGroup);
+            edgesGroup.traverse(obj => {
+                if ((obj as any).isLine) {
+                    const line = obj as THREE.LineSegments;
+                    line.geometry.dispose();
+                    (line.material as THREE.Material).dispose();
+                }
+            });
+        }
+        edgesGroup = new THREE.Group();
+        edgesGroup.name = 'edges_group';
+        this.loadedGroup.traverse(obj => {
+            if ((obj as any).isMesh) {
+                const mesh = obj as THREE.Mesh;
+                const edges = new THREE.EdgesGeometry(mesh.geometry, 15);
+                const line = new THREE.LineSegments(
+                    edges,
+                    new THREE.LineBasicMaterial({ color: 0xffffff })
+                );
+                line.position.copy(mesh.position);
+                line.rotation.copy(mesh.rotation);
+                line.scale.copy(mesh.scale);
+                edgesGroup!.add(line);
+            }
+        });
+        edgesGroup.visible = showEdgesEl.checked;
+        this.scene.add(edgesGroup);
 
         this.meshRefs = [];
         this.loadedGroup.traverse(obj => {
@@ -966,6 +1122,7 @@ private exportTextures() {
             }
         });
 
+        // Refresh all visualization helpers
         if (skeletonHelper) {
             this.scene.remove(skeletonHelper);
             (skeletonHelper.geometry as THREE.BufferGeometry).dispose();
@@ -974,6 +1131,64 @@ private exportTextures() {
             skeletonHelper = new THREE.SkeletonHelper(this.loadedGroup);
             skeletonHelper.visible = showSkeletonEl.checked;
             this.scene.add(skeletonHelper);
+
+            if (boundingBoxHelper) {
+                this.scene.remove(boundingBoxHelper);
+                boundingBoxHelper.dispose();
+            }
+            boundingBoxHelper = new THREE.BoxHelper(this.loadedGroup, 0x00ff00);
+            boundingBoxHelper.visible = boundingBoxEl.checked;
+            this.scene.add(boundingBoxHelper);
+
+            if (axesHelper) {
+                this.scene.remove(axesHelper);
+                axesHelper.dispose();
+            }
+            axesHelper = new THREE.AxesHelper(100);
+            axesHelper.visible = showAxesEl.checked;
+            this.loadedGroup.add(axesHelper);
+
+            if (normalsHelper) {
+                this.scene.remove(normalsHelper);
+                normalsHelper.dispose();
+                normalsHelper = null;
+            }
+            this.loadedGroup.traverse(obj => {
+                if ((obj as any).isMesh && !normalsHelper) {
+                    normalsHelper = new VertexNormalsHelper(obj as THREE.Mesh, 5, 0xff0000);
+                    normalsHelper.visible = showNormalsEl.checked;
+                    this.scene.add(normalsHelper);
+                }
+            });
+
+            if (edgesGroup) {
+                this.scene.remove(edgesGroup);
+                edgesGroup.traverse(obj => {
+                    if ((obj as any).isLine) {
+                        const line = obj as THREE.LineSegments;
+                        line.geometry.dispose();
+                        (line.material as THREE.Material).dispose();
+                    }
+                });
+            }
+            edgesGroup = new THREE.Group();
+            edgesGroup.name = 'edges_group';
+            this.loadedGroup.traverse(obj => {
+                if ((obj as any).isMesh) {
+                    const mesh = obj as THREE.Mesh;
+                    const edges = new THREE.EdgesGeometry(mesh.geometry, 15);
+                    const line = new THREE.LineSegments(
+                        edges,
+                        new THREE.LineBasicMaterial({ color: 0xffffff })
+                    );
+                    line.position.copy(mesh.position);
+                    line.rotation.copy(mesh.rotation);
+                    line.scale.copy(mesh.scale);
+                    edgesGroup!.add(line);
+                }
+            });
+            edgesGroup.visible = showEdgesEl.checked;
+            this.scene.add(edgesGroup);
 
             this.meshRefs = [];
             this.loadedGroup.traverse(obj => {
