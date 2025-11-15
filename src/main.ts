@@ -1,10 +1,94 @@
 // src/main.ts
 import * as THREE from 'three';
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
+import { VertexNormalsHelper } from 'three/examples/jsm/helpers/VertexNormalsHelper.js';
 import { BMDLoader, convertTgaToDataUrl } from './bmd-loader';
 import { convertOzjToDataUrl } from './ozj-loader';
 import { GLTFExporter } from 'three/examples/jsm/exporters/GLTFExporter.js';
 import './style.css';
+
+class SkinnedVertexNormalsHelper extends THREE.LineSegments {
+    public skinned: THREE.SkinnedMesh;
+    public size: number;
+
+    private _vertex = new THREE.Vector3();
+    private _skinnedVertex = new THREE.Vector3();
+    private _normal = new THREE.Vector3();
+    private _indices: Uint32Array;
+
+    constructor(skinned: THREE.SkinnedMesh, size: number, color: number) {
+        const srcGeo = skinned.geometry as THREE.BufferGeometry;
+        const posAttr = srcGeo.getAttribute('position') as THREE.BufferAttribute | null;
+
+        const count = posAttr ? posAttr.count : 0;
+
+        const maxLines = 2000;
+        const sampleCount = count > 0 ? Math.min(count, maxLines) : 0;
+
+        const indices = new Uint32Array(sampleCount || 0);
+        for (let j = 0; j < sampleCount; j++) {
+            indices[j] = Math.floor((j / sampleCount) * count);
+        }
+        const positions = new Float32Array(indices.length * 2 * 3);
+
+        const geometry = new THREE.BufferGeometry();
+        geometry.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+
+        const material = new THREE.LineBasicMaterial({ color, toneMapped: false });
+
+        super(geometry, material);
+
+        this.skinned = skinned;
+        this.size = size;
+        this._indices = indices;
+        this.matrixAutoUpdate = false;
+    }
+
+    public update(): void {
+        const skinned = this.skinned;
+        const srcGeo = skinned.geometry as THREE.BufferGeometry;
+        const posAttr = srcGeo.getAttribute('position') as THREE.BufferAttribute | null;
+        const normAttr = srcGeo.getAttribute('normal') as THREE.BufferAttribute | null;
+
+        const dstAttr = this.geometry.getAttribute('position') as THREE.BufferAttribute | null;
+
+        if (!posAttr || !normAttr || !dstAttr || !this._indices.length) return;
+
+        skinned.updateMatrixWorld(true);
+
+        const matrixWorld = skinned.matrixWorld;
+        const normalMatrix = new THREE.Matrix3().getNormalMatrix(matrixWorld);
+        const size = this.size;
+
+        const vertex = this._vertex;
+        const skinnedVertex = this._skinnedVertex;
+        const normal = this._normal;
+
+        for (let s = 0; s < this._indices.length; s++) {
+            const i = this._indices[s];
+
+            vertex.fromBufferAttribute(posAttr, i);
+
+            skinnedVertex.copy(vertex);
+            skinned.applyBoneTransform(i, skinnedVertex);
+            skinnedVertex.applyMatrix4(matrixWorld);
+
+            normal.fromBufferAttribute(normAttr, i);
+            normal.applyMatrix3(normalMatrix).normalize().multiplyScalar(size);
+
+            const idx = s * 2;
+            dstAttr.setXYZ(idx, skinnedVertex.x, skinnedVertex.y, skinnedVertex.z);
+            dstAttr.setXYZ(idx + 1,
+                skinnedVertex.x + normal.x,
+                skinnedVertex.y + normal.y,
+                skinnedVertex.z + normal.z);
+        }
+
+        dstAttr.needsUpdate = true;
+
+        this.matrixWorld.identity();
+    }
+}
 
 // == View ==
 let skeletonHelper: THREE.SkeletonHelper | null = null;
@@ -59,6 +143,17 @@ class App {
 
     private meshRefs: THREE.Mesh[] = [];
     private attachments: THREE.Group[] = [];
+
+    // Helpers / debug visuals
+    private boundingBoxHelper: THREE.BoxHelper | null = null;
+    private axesHelper: THREE.AxesHelper | null = null;
+    private normalHelpers: Array<THREE.LineSegments & { update: () => void }> = [];
+
+    private showBoundingBoxCheckbox!: HTMLInputElement;
+    private showAxesCheckbox!: HTMLInputElement;
+    private showNormalsCheckbox!: HTMLInputElement;
+    private normalsVisible = false;
+    private normalsUpdateCounter = 0;
 
     constructor() {
         console.log('%c[App] constructor', 'color:#0f0');
@@ -234,6 +329,23 @@ class App {
             });
         });
 
+        // === Bounding box / axes / normals ================================
+        this.showBoundingBoxCheckbox = document.getElementById('show-bbox-checkbox') as HTMLInputElement;
+        this.showAxesCheckbox        = document.getElementById('show-axes-checkbox') as HTMLInputElement;
+        this.showNormalsCheckbox     = document.getElementById('show-normals-checkbox') as HTMLInputElement;
+
+        this.showBoundingBoxCheckbox.addEventListener('change', () => {
+            this.updateBoundingBoxHelperState();
+        });
+
+        this.showAxesCheckbox.addEventListener('change', () => {
+            this.updateAxesHelperState();
+        });
+
+        this.showNormalsCheckbox.addEventListener('change', () => {
+            this.updateNormalsHelpersState();
+        });
+
         // === attach model to bone (id or bone name) ===============================
         const attachInput      = document.getElementById('attach-bmd-input')   as HTMLInputElement;
         const attachBone       = document.getElementById('attach-bone-input')  as HTMLInputElement;
@@ -404,6 +516,11 @@ class App {
             });
             this.buildBlendingUI();
 
+            // --- helpers (bbox / axes / normals) --------------------------
+            this.updateBoundingBoxHelperState();
+            this.updateAxesHelperState();
+            this.updateNormalsHelpersState();
+
         } catch (err) {
             console.error('‼️ loader.load() ERROR', err);
             statusEl.textContent = `Error: ${(err as Error).message}`;
@@ -514,6 +631,30 @@ class App {
             this.currentAction = null;
             document.getElementById('animations-container')!.innerHTML = '';
         }
+
+        // Remove helpers for previous model
+        if (this.boundingBoxHelper) {
+            this.scene.remove(this.boundingBoxHelper);
+            this.boundingBoxHelper.geometry.dispose();
+            (this.boundingBoxHelper.material as THREE.Material).dispose();
+            this.boundingBoxHelper = null;
+        }
+        if (this.axesHelper) {
+            this.scene.remove(this.axesHelper);
+            this.axesHelper.geometry.dispose();
+            (this.axesHelper.material as THREE.Material).dispose();
+            this.axesHelper = null;
+        }
+        if (this.normalHelpers.length) {
+            this.normalHelpers.forEach(helper => {
+                this.scene.remove(helper);
+                helper.geometry.dispose();
+                (helper.material as THREE.Material).dispose();
+            });
+            this.normalHelpers = [];
+        }
+        this.normalsVisible = false;
+
         if (this.exportBtn) this.exportBtn.disabled = true;
         this.updateDiagnosticInfo();
     }
@@ -662,43 +803,189 @@ class App {
         }
     }
 
-    /** Saves all unique material maps to PNG files */
-private exportTextures() {
-  if (!this.loadedGroup) return;
+    private isDrawableTextureImage(
+        source: unknown,
+    ): source is CanvasImageSource & { width: number; height: number } {
+        if (!source) return false;
+        if (typeof source !== 'object' && typeof source !== 'function') return false;
 
-  const exported = new Set<THREE.Texture>();
-
-  this.loadedGroup.traverse(obj => {
-    if ((obj as THREE.Mesh).isMesh) {
-      const mat = (obj as THREE.Mesh).material as THREE.MeshPhongMaterial;
-      if (mat.map && !exported.has(mat.map) && (mat.map.image as any)?.width) {
-        const img: HTMLImageElement|HTMLCanvasElement|ImageBitmap = mat.map.image;
-        const cvs = Object.assign(document.createElement('canvas'),
-                                  { width: (img as any).width, height: (img as any).height });
-        cvs.getContext('2d')!.drawImage(img as any, 0, 0);
-
-        cvs.toBlob(blob => {
-          if (!blob) return;
-          const a = document.createElement('a');
-          a.href = URL.createObjectURL(blob);
-          const base = ((mat.map && mat.map.name) ? mat.map.name : 'texture').replace(/\.[^.]+$/, '');
-          a.download = `${base}.png`;
-          a.style.display = 'none';
-          document.body.appendChild(a);
-          a.click();
-          document.body.removeChild(a);
-        }, 'image/png');
-
-        exported.add(mat.map);
-      }
+        const candidate = source as { width?: unknown; height?: unknown };
+        return typeof candidate.width === 'number' && typeof candidate.height === 'number';
     }
-  });
 
-  const st = document.getElementById('status')!;
-  st.textContent = exported.size
-      ? `Exported ${exported.size} texture(s).`
-      : 'No loaded textures to export.';
-}
+    /** Saves all unique material maps to PNG files */
+    private exportTextures() {
+        if (!this.loadedGroup) return;
+
+        const exported = new Set<THREE.Texture>();
+
+        this.loadedGroup.traverse(obj => {
+            if ((obj as THREE.Mesh).isMesh) {
+                const mat = (obj as THREE.Mesh).material as THREE.MeshPhongMaterial;
+                if (!mat.map || exported.has(mat.map)) return;
+
+                const textureImage = mat.map.image;
+                if (!this.isDrawableTextureImage(textureImage)) return;
+
+                const img = textureImage;
+                const cvs = document.createElement('canvas');
+                cvs.width = img.width;
+                cvs.height = img.height;
+                const ctx = cvs.getContext('2d');
+                if (!ctx) return;
+
+                ctx.drawImage(img, 0, 0);
+
+                cvs.toBlob(blob => {
+                    if (!blob) return;
+                    const a = document.createElement('a');
+                    a.href = URL.createObjectURL(blob);
+                    const base = (mat.map?.name ? mat.map.name : 'texture').replace(/\.[^.]+$/, '');
+                    a.download = `${base}.png`;
+                    a.style.display = 'none';
+                    document.body.appendChild(a);
+                    a.click();
+                    document.body.removeChild(a);
+                }, 'image/png');
+
+                exported.add(mat.map);
+            }
+        });
+
+        const st = document.getElementById('status')!;
+        st.textContent = exported.size
+            ? `Exported ${exported.size} texture(s).`
+            : 'No loaded textures to export.';
+    }
+
+    //----------------------------------------------------------
+    // Helpers: bounding box, axes, normals
+    //----------------------------------------------------------
+    private getModelSizeHint(): number {
+        if (!this.loadedGroup) return 100;
+        const box = new THREE.Box3().setFromObject(this.loadedGroup);
+        const size = box.getSize(new THREE.Vector3());
+        const maxSide = Math.max(size.x, size.y, size.z);
+        return maxSide || 100;
+    }
+
+    private updateBoundingBoxHelperState() {
+        const enabled = this.showBoundingBoxCheckbox?.checked;
+
+        if (!enabled || !this.loadedGroup) {
+            if (this.boundingBoxHelper) {
+                this.boundingBoxHelper.visible = false;
+            }
+            return;
+        }
+
+        if (!this.boundingBoxHelper) {
+            this.boundingBoxHelper = new THREE.BoxHelper(this.loadedGroup, 0xffff00);
+            this.boundingBoxHelper.name = 'bmd_bbox_helper';
+            this.scene.add(this.boundingBoxHelper);
+        }
+        this.boundingBoxHelper.visible = true;
+        this.updateSkinnedMeshesBoundingBoxes();
+        this.boundingBoxHelper.update();
+    }
+
+    private updateSkinnedMeshesBoundingBoxes() {
+        if (!this.loadedGroup) return;
+
+        this.loadedGroup.traverse(obj => {
+            const skinned = obj as THREE.SkinnedMesh;
+            if (!skinned.isSkinnedMesh) return;
+
+            const geometry = skinned.geometry as THREE.BufferGeometry;
+            const positionAttr = geometry.getAttribute('position');
+            if (!positionAttr) return;
+
+            const hasSkinData =
+                !!geometry.getAttribute('skinIndex') &&
+                !!geometry.getAttribute('skinWeight');
+
+            if (hasSkinData) {
+                skinned.computeBoundingBox();
+                return;
+            }
+
+            if (!skinned.boundingBox) {
+                skinned.boundingBox = new THREE.Box3();
+            }
+
+            if (geometry.boundingBox === null) {
+                geometry.computeBoundingBox();
+            }
+
+            if (geometry.boundingBox && skinned.boundingBox) {
+                skinned.boundingBox.copy(geometry.boundingBox);
+            }
+        });
+    }
+
+    private updateAxesHelperState() {
+        const enabled = this.showAxesCheckbox?.checked;
+
+        if (!enabled || !this.loadedGroup) {
+            if (this.axesHelper) {
+                this.axesHelper.visible = false;
+            }
+            return;
+        }
+
+        const size = this.getModelSizeHint() * 0.6 || 100;
+
+        if (!this.axesHelper) {
+            this.axesHelper = new THREE.AxesHelper(size);
+            this.axesHelper.name = 'bmd_axes_helper';
+            this.axesHelper.matrixAutoUpdate = true;
+            this.scene.add(this.axesHelper);
+        }
+
+        this.axesHelper.visible = true;
+    }
+
+    private updateNormalsHelpersState() {
+        const enabled = this.showNormalsCheckbox?.checked;
+
+        if (!enabled || !this.loadedGroup) {
+            this.normalsVisible = false;
+            if (this.normalHelpers.length) {
+                this.normalHelpers.forEach(helper => {
+                    helper.visible = false;
+                });
+            }
+            return;
+        }
+
+        // Create helpers once per mesh
+        if (!this.normalHelpers.length) {
+            const size = this.getModelSizeHint() * 0.05 || 5;
+            this.loadedGroup.traverse(obj => {
+                const mesh = obj as THREE.Mesh;
+                if ((mesh as any).isMesh && (mesh.geometry as THREE.BufferGeometry).attributes?.normal) {
+                    let helper: THREE.LineSegments & { update: () => void };
+                    if ((mesh as THREE.SkinnedMesh).isSkinnedMesh) {
+                        helper = new SkinnedVertexNormalsHelper(mesh as THREE.SkinnedMesh, size, 0x00ffff);
+                    } else {
+                        helper = new VertexNormalsHelper(mesh, size, 0x00ffff) as unknown as THREE.LineSegments & { update: () => void };
+                    }
+                    helper.name = `bmd_normals_helper_${this.normalHelpers.length}`;
+                    this.scene.add(helper);
+                    this.normalHelpers.push(helper);
+                }
+            });
+        }
+
+        this.normalHelpers.forEach(helper => {
+            helper.visible = true;
+        });
+        this.normalsVisible = true;
+        this.normalsUpdateCounter = 0;
+
+        // Initial update so that helpers are visible immediately
+        this.normalHelpers.forEach(helper => helper.update());
+    }
 
     //----------------------------------------------------------
     // Setting speed and animations (no major changes)
@@ -787,6 +1074,25 @@ private exportTextures() {
                 this.mixer.update(delta);
             }
         }
+
+        if (this.axesHelper && this.loadedGroup && this.axesHelper.visible) {
+            this.axesHelper.position.copy(this.loadedGroup.position);
+            this.axesHelper.quaternion.copy(this.loadedGroup.quaternion);
+            this.axesHelper.scale.copy(this.loadedGroup.scale);
+        }
+
+        // Update helpers
+        if (this.boundingBoxHelper && this.loadedGroup && this.boundingBoxHelper.visible) {
+            this.updateSkinnedMeshesBoundingBoxes();
+            this.boundingBoxHelper.update();
+        }
+        if (this.normalsVisible && this.normalHelpers.length) {
+            this.normalsUpdateCounter = (this.normalsUpdateCounter + 1) % 3;
+            if (this.normalsUpdateCounter === 0) {
+                this.normalHelpers.forEach(helper => helper.update());
+            }
+        }
+
         this.controls.update();
         this.renderer.render(this.scene, this.camera);
 

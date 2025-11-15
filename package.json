@@ -1,6 +1,6 @@
 {
   "name": "bmd-viewer-final",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "main": "index.js",
   "scripts": {
     "dev": "vite",
@@ -13,23 +13,23 @@
   "license": "ISC",
   "description": "",
   "dependencies": {
-    "@lunapaint/tga-codec": "^0.1.0",
+    "@lunapaint/tga-codec": "^0.2.0",
     "@types/crypto-js": "^4.2.2",
     "crypto-js": "^4.2.0",
-    "three": "^0.177.0"
+    "three": "^0.181.1"
   },
   "devDependencies": {
     "@types/jest": "^30.0.0",
-    "@types/three": "^0.178.0",
+    "@types/three": "^0.181.0",
     "css-loader": "^7.1.2",
-    "jest": "^30.0.4",
+    "jest": "^30.2.0",
     "raw-loader": "^4.0.2",
     "style-loader": "^4.0.0",
-    "ts-jest": "^29.4.0",
-    "ts-loader": "^9.5.2",
-    "typescript": "^5.8.3",
-    "vite": "^7.0.0",
-    "webpack": "^5.99.9",
+    "ts-jest": "^29.4.5",
+    "ts-loader": "^9.5.4",
+    "typescript": "^5.9.3",
+    "vite": "^7.2.2",
+    "webpack": "^5.102.1",
     "webpack-cli": "^6.0.1"
   }
 }
