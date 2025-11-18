@@ -143,6 +143,9 @@ class App {
 
     private meshRefs: THREE.Mesh[] = [];
     private attachments: THREE.Group[] = [];
+    private currentAttachment: THREE.Group | null = null;
+    private currentAttachmentFile: File | null = null;
+    private mainSkeleton: THREE.Skeleton | null = null;
 
     // Helpers / debug visuals
     private boundingBoxHelper: THREE.BoxHelper | null = null;
@@ -310,6 +313,17 @@ class App {
         setupDropZone(animZone, animInput, files => this.handleAnimBmdFile(files[0]));
         setupDropZone(texZone, texInput, files => this.handleMultipleTextureFiles(files));
 
+        // Setup attachment drop zone
+        const attachZone = document.getElementById('attach-drop-zone')!;
+        const attachInput = document.getElementById('attach-bmd-input') as HTMLInputElement;
+        setupDropZone(attachZone, attachInput, files => {
+            if (files[0]) {
+                document.querySelector('#attach-drop-zone p')!.textContent = `Selected: ${files[0].name}`;
+                this.currentAttachmentFile = files[0];
+                this.setupAttachmentControls();
+            }
+        });
+
         // === Show / hide skeleton =========================================
         showSkeletonEl.addEventListener('change', () => {
             if (skeletonHelper) skeletonHelper.visible = showSkeletonEl.checked;
@@ -346,29 +360,31 @@ class App {
             this.updateNormalsHelpersState();
         });
 
-        // === attach model to bone (id or bone name) ===============================
-        const attachInput      = document.getElementById('attach-bmd-input')   as HTMLInputElement;
-        const attachBone       = document.getElementById('attach-bone-input')  as HTMLInputElement;
-        const attachBtn        = document.getElementById('attach-bmd-btn')     as HTMLButtonElement;
-        const undoAttachBtn    = document.getElementById('undo-attach-btn')    as HTMLButtonElement;
+        // === attach model to bone (dropdown + slider) ===============================
+        const attachBoneSelect = document.getElementById('attach-bone-select') as HTMLSelectElement;
+        const attachBoneSlider = document.getElementById('attach-bone-slider') as HTMLInputElement;
+        const attachBoneValue = document.getElementById('attach-bone-value')!;
+        const undoAttachBtn = document.getElementById('undo-attach-btn') as HTMLButtonElement;
 
-        attachBtn.addEventListener('click', () => {
-            const file = attachInput.files?.[0];
-            const ref  = attachBone.value.trim();
-            if (!file || !ref) {
-                alert('Select the BMD file and enter the name or ID of the bone.');
-                return;
-            }
-
-            const idx = parseInt(ref, 10);
-            if (!isNaN(idx)) {
-                this.attachModelToBone(file, idx);
-            } else {
-                this.attachModelToBone(file, ref);
+        // Sync dropdown with slider
+        attachBoneSelect.addEventListener('change', () => {
+            const boneIndex = parseInt(attachBoneSelect.value);
+            if (!isNaN(boneIndex)) {
+                attachBoneSlider.value = boneIndex.toString();
+                attachBoneValue.textContent = boneIndex.toString();
+                this.changeBoneForAttachment(boneIndex);
             }
         });
 
-        undoAttachBtn.addEventListener('click', () => this.undoLastAttachment());
+        // Sync slider with dropdown
+        attachBoneSlider.addEventListener('input', () => {
+            const boneIndex = parseInt(attachBoneSlider.value);
+            attachBoneSelect.value = boneIndex.toString();
+            attachBoneValue.textContent = boneIndex.toString();
+            this.changeBoneForAttachment(boneIndex);
+        });
+
+        undoAttachBtn.addEventListener('click', () => this.removeAttachment());
 
         console.groupEnd();
     }
@@ -482,6 +498,11 @@ class App {
             this.scene.add(group);
             this.loadedGroup = group;
             this.requiredTextures = requiredTextures;
+
+            // Save main model skeleton for attachments
+            const mainSkinnedMesh = group.getObjectByProperty('type', 'SkinnedMesh') as THREE.SkinnedMesh | undefined;
+            this.mainSkeleton = mainSkinnedMesh?.skeleton || null;
+
             this.setupAnimations(group);
             statusEl.textContent = `Loaded: ${group.name} (animations: ${group.animations.length})`;
             this.updateTextureUI();
@@ -631,6 +652,9 @@ class App {
             this.currentAction = null;
             document.getElementById('animations-container')!.innerHTML = '';
         }
+
+        // Clear main skeleton reference
+        this.mainSkeleton = null;
 
         // Remove helpers for previous model
         if (this.boundingBoxHelper) {
@@ -1180,6 +1204,207 @@ class App {
       if (this.ambientLight)    this.ambientLight.intensity   = 0.7 * value;
       if (this.directionalLight) this.directionalLight.intensity = 1.5 * value;
     }
+
+    // ========== NEW ATTACHMENT SYSTEM ==========
+
+    /** Setup attachment controls after file selection */
+    private async setupAttachmentControls() {
+        console.log('[setupAttachmentControls] Starting...');
+        if (!this.loadedGroup || !this.currentAttachmentFile) {
+            alert('First load the base character model.');
+            return;
+        }
+
+        if (!this.mainSkeleton) {
+            alert('The base model does not include a skeleton.');
+            return;
+        }
+
+        const bones = this.mainSkeleton.bones;
+        console.log(`[setupAttachmentControls] Main skeleton has ${bones.length} bones`);
+
+        // Show controls
+        const controls = document.getElementById('attach-controls')!;
+        controls.style.display = 'block';
+
+        // Fill dropdown with bones
+        const select = document.getElementById('attach-bone-select') as HTMLSelectElement;
+        const slider = document.getElementById('attach-bone-slider') as HTMLInputElement;
+        const valueLabel = document.getElementById('attach-bone-value')!;
+
+        select.innerHTML = '<option value="">-- Select Bone --</option>';
+
+        bones.forEach((bone, index) => {
+            const option = document.createElement('option');
+            option.value = index.toString();
+            option.textContent = `${index}: ${bone.name || 'Unnamed'}`;
+            select.appendChild(option);
+        });
+
+        // Setup slider
+        slider.min = '0';
+        slider.max = (bones.length - 1).toString();
+        slider.value = '0';
+        valueLabel.textContent = '0';
+
+        // Load attachment at bone 0
+        await this.loadAttachmentAtBone(0);
+        select.value = '0';
+    }
+
+    /** Load attachment model and attach to specified bone */
+    private async loadAttachmentAtBone(boneIndex: number) {
+        console.log(`[loadAttachmentAtBone] Loading attachment at bone ${boneIndex}`);
+        if (!this.loadedGroup || !this.currentAttachmentFile || !this.mainSkeleton) {
+            console.warn('[loadAttachmentAtBone] Missing required objects');
+            return;
+        }
+
+        const bones = this.mainSkeleton.bones;
+        if (boneIndex < 0 || boneIndex >= bones.length) {
+            console.warn(`[loadAttachmentAtBone] Bone index out of range`);
+            return;
+        }
+
+        const target = bones[boneIndex];
+        console.log(`[loadAttachmentAtBone] Attaching to bone: ${target.name || 'Unnamed'}`);
+
+        // Remove previous attachment if exists
+        if (this.currentAttachment) {
+            if (this.currentAttachment.parent) {
+                this.currentAttachment.parent.remove(this.currentAttachment);
+            }
+            this.disposeAttachment(this.currentAttachment);
+        }
+
+        // Load new attachment
+        const { group, requiredTextures } = await this.bmdLoader.load(
+            await this.currentAttachmentFile.arrayBuffer()
+        );
+
+        group.name = `attachment_bone_${boneIndex}`;
+        group.position.set(0, 0, 0);
+        group.rotation.set(0, 0, 0);
+        group.scale.set(1, 1, 1);
+
+        target.add(group);
+        this.currentAttachment = group;
+
+        this.requiredTextures.push(...requiredTextures);
+        this.updateTextureUI();
+
+        // Update skeleton helper
+        if (skeletonHelper) {
+            this.scene.remove(skeletonHelper);
+            (skeletonHelper.geometry as THREE.BufferGeometry).dispose();
+        }
+        skeletonHelper = new THREE.SkeletonHelper(this.loadedGroup);
+        skeletonHelper.visible = showSkeletonEl.checked;
+        this.scene.add(skeletonHelper);
+
+        this.meshRefs = [];
+        this.loadedGroup.traverse(obj => {
+            if ((obj as any).isMesh) this.meshRefs.push(obj as THREE.Mesh);
+        });
+        this.buildBlendingUI();
+    }
+
+    /** Change bone for current attachment (without reloading model) */
+    private changeBoneForAttachment(boneIndex: number) {
+        console.log(`[changeBoneForAttachment] Changing to bone ${boneIndex}`);
+        if (!this.loadedGroup || !this.currentAttachment || !this.mainSkeleton) {
+            console.warn('[changeBoneForAttachment] Missing required objects');
+            return;
+        }
+
+        const bones = this.mainSkeleton.bones;
+        if (boneIndex < 0 || boneIndex >= bones.length) {
+            console.warn(`[changeBoneForAttachment] Bone index ${boneIndex} out of range (0-${bones.length - 1})`);
+            return;
+        }
+
+        const target = bones[boneIndex];
+        console.log(`[changeBoneForAttachment] Target bone: ${target.name || 'Unnamed'}`);
+
+        // Move attachment to new bone
+        if (this.currentAttachment.parent) {
+            this.currentAttachment.parent.remove(this.currentAttachment);
+        }
+
+        this.currentAttachment.position.set(0, 0, 0);
+        this.currentAttachment.rotation.set(0, 0, 0);
+        this.currentAttachment.scale.set(1, 1, 1);
+
+        target.add(this.currentAttachment);
+        this.currentAttachment.name = `attachment_bone_${boneIndex}`;
+
+        // Mark matrices as needing update - Three.js will update them in next render frame
+        // (Avoids stack overflow from recursive updateMatrixWorld)
+        this.currentAttachment.matrixWorldNeedsUpdate = true;
+        if (this.currentAttachment.parent) {
+            this.currentAttachment.parent.matrixWorldNeedsUpdate = true;
+        }
+    }
+
+    /** Remove current attachment and hide controls */
+    private removeAttachment() {
+        if (!this.currentAttachment) {
+            alert('No attachment to remove.');
+            return;
+        }
+
+        if (this.currentAttachment.parent) {
+            this.currentAttachment.parent.remove(this.currentAttachment);
+        }
+
+        this.disposeAttachment(this.currentAttachment);
+        this.currentAttachment = null;
+        this.currentAttachmentFile = null;
+
+        // Hide controls
+        const controls = document.getElementById('attach-controls')!;
+        controls.style.display = 'none';
+
+        // Reset drop zone text
+        document.querySelector('#attach-drop-zone p')!.textContent = 'Drop attachment .bmd';
+
+        // Update skeleton helper
+        if (skeletonHelper && this.loadedGroup) {
+            this.scene.remove(skeletonHelper);
+            (skeletonHelper.geometry as THREE.BufferGeometry).dispose();
+            skeletonHelper = new THREE.SkeletonHelper(this.loadedGroup);
+            skeletonHelper.visible = showSkeletonEl.checked;
+            this.scene.add(skeletonHelper);
+        }
+
+        this.meshRefs = [];
+        if (this.loadedGroup) {
+            this.loadedGroup.traverse(obj => {
+                if ((obj as any).isMesh) this.meshRefs.push(obj as THREE.Mesh);
+            });
+        }
+
+        this.buildBlendingUI();
+        this.updateTextureUI();
+    }
+
+    /** Dispose attachment resources */
+    private disposeAttachment(group: THREE.Group) {
+        group.traverse(obj => {
+            if ((obj as THREE.Mesh).isMesh) {
+                (obj as THREE.Mesh).geometry.dispose();
+                const mat = (obj as THREE.Mesh).material;
+                if (Array.isArray(mat)) {
+                    mat.forEach(m => m.dispose());
+                } else {
+                    if ((mat as any).map) (mat as any).map.dispose();
+                    (mat as THREE.Material).dispose();
+                }
+            }
+        });
+    }
+
+    // ========== OLD ATTACHMENT METHODS (kept for compatibility) ==========
 
     private async attachModelToBone(
         file: File,
