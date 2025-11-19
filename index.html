@@ -5,317 +5,243 @@
   <meta charset="UTF-8" />
   <link rel="icon" type="image/svg+xml" href="/vite.svg" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>MU Online BMD Viewer (Three.js)</title>
-  <script type="module" crossorigin src="/muonline-bmd-viewer/assets/index-8PtGamqU.js"></script>
-  <link rel="stylesheet" crossorigin href="/muonline-bmd-viewer/assets/index-VEEdJbJE.css">
+  <title>MU Online BMD Viewer</title>
+  <!-- Preload fonts for better performance -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+  <script type="module" crossorigin src="/muonline-bmd-viewer/assets/index-_smK2yyF.js"></script>
+  <link rel="stylesheet" crossorigin href="/muonline-bmd-viewer/assets/index-CKDMHPVF.css">
 </head>
 
 <body>
-  <!-- Sidebar toggle button -->
-  <button class="sidebar-toggle" id="sidebar-toggle">
-    ⚙️
-  </button>
-
-  <!-- Sidebar -->
-  <div class="sidebar" id="sidebar">
-    <div class="sidebar-content">
-      <div class="sidebar-header">
-        <h2 class="sidebar-title">Controls</h2>
-      </div>
-
-      <!-- File loading section -->
-      <div class="control-section">
-        <h3>📁 File Loading</h3>
-        <div class="drop-zone" id="bmd-drop-zone">
-          <p>Drag and drop a <strong>.bmd</strong> file here or click to select</p>
-          <input type="file" id="bmd-file-input" accept=".bmd" style="display: none;" />
+  <div id="app">
+    <!-- Sidebar -->
+    <aside class="sidebar" id="sidebar">
+      <div class="sidebar-content">
+        <div class="sidebar-header">
+          <h2 class="sidebar-title">🛠️ BMD Controls</h2>
         </div>
 
-        <div class="drop-zone" id="anim-bmd-drop-zone">
-          <p>Optional: load animations from another <strong>.bmd</strong> file</p>
-          <input type="file" id="anim-bmd-file-input" accept=".bmd" style="display: none;" />
-        </div>
-      </div>
-
-      <!-- Export section -->
-      <div class="control-section" id="export-controls">
-        <h3>💾 Export</h3>
-        <button id="export-glb-btn" class="modern-btn animation-btn">Export to GLB</button>
-        <button id="export-textures-btn" disabled class="modern-btn animation-btn">Export textures (PNG)</button>
-      </div>
-
-      <!-- Texture loading section -->
-      <div class="control-section" id="texture-controls" style="display: none;">
-        <h3>🎨 Textures</h3>
-        <p id="texture-info-text" style="color: var(--text-secondary); font-size: 0.9rem; margin-bottom: 1rem;"></p>
-        <div class="drop-zone" id="texture-drop-zone">
-          <p>Drag and drop <strong>one or more</strong> textures
-            (.jpg, .png, .tga, .ozj, .ozt) here or click to select</p>
-          <input type="file" id="texture-file-input" accept=".jpg,.jpeg,.png,.tga,.ozt,.ozj" multiple
-            style="display: none;" />
-        </div>
-      </div>
-
-      <!-- Attachment loading section -->
-      <div class="control-section">
-        <h3>🔗 Attach Model</h3>
-        <input type="file" id="attach-bmd-input" accept=".bmd">
-        <input type="text" id="attach-bone-input" placeholder="Bone id" class="frame-input"
-          style="margin-top:0.5rem;">
-        <button id="attach-bmd-btn" class="modern-btn animation-btn" style="margin-top:0.5rem;">Attach</button>
-        <button id="undo-attach-btn" class="modern-btn animation-btn" style="margin-top:0.5rem;">Undo attachment</button>
-      </div>
-
-      <!-- Animation controls -->
-      <div class="control-section">
-        <h3>🎬 Animation</h3>
-
-        <div class="slider-control">
-          <div class="slider-label">
-            <span>Speed</span>
-            <span class="slider-value" id="speed-value">0.20x</span>
+        <!-- File Loading -->
+        <div class="control-section">
+          <h3>Import Assets</h3>
+          
+          <div class="drop-zone" id="bmd-drop-zone" title="Load Main Model">
+            <p>Drop <strong>.bmd</strong> model here</p>
+            <input type="file" id="bmd-file-input" accept=".bmd" style="display: none;" />
           </div>
-          <input type="range" id="speed-slider" class="modern-slider" min="0.1" max="2.0" step="0.1" value="0.2">
-        </div>
 
-        <div class="checkbox-control">
-          <input type="checkbox" id="auto-rotate-checkbox" class="modern-checkbox" checked>
-          <label for="auto-rotate-checkbox">Auto-rotate</label>
-        </div>
-      </div>
-
-      <!-- Scale control -->
-      <div class="control-section">
-        <h3>🔍 Scale</h3>
-        <div class="slider-control">
-          <div class="slider-label">
-            <span>Size</span>
-            <span class="slider-value" id="scale-value">1.00x</span>
+          <div class="drop-zone" id="anim-bmd-drop-zone" title="Load External Animations">
+            <p>Drop animation <strong>.bmd</strong> (optional)</p>
+            <input type="file" id="anim-bmd-file-input" accept=".bmd" style="display: none;" />
           </div>
-          <input type="range" id="scale-slider" class="modern-slider" min="0.1" max="5.0" step="0.1" value="1.0">
+
+          <!-- Texture Loading (Initially Hidden) -->
+          <div id="texture-controls" style="display: none; margin-top: 1rem;">
+            <p id="texture-info-text" style="font-size: 0.8rem; color: var(--accent-primary); margin-bottom: 0.5rem;"></p>
+            <div class="drop-zone" id="texture-drop-zone">
+              <p>Drop textures (.jpg, .tga, .ozj)</p>
+              <input type="file" id="texture-file-input" accept=".jpg,.jpeg,.png,.tga,.ozt,.ozj" multiple style="display: none;" />
+            </div>
+          </div>
         </div>
 
-        <!-- Needed for compatibility with main.ts -->
-        <div class="speed-control" style="display: none;">
+        <!-- Animation Settings -->
+        <div class="control-section">
+          <h3>Animation Settings</h3>
+          
+          <div class="slider-control">
+            <div class="slider-label">
+              <span>Playback Speed</span>
+              <span class="slider-value" id="speed-value">0.20x</span>
+            </div>
+            <input type="range" id="speed-slider" class="modern-slider" min="0.1" max="2.0" step="0.1" value="0.2">
+          </div>
+
+          <div class="checkbox-control">
+            <label for="auto-rotate-checkbox">Auto-rotate Model</label>
+            <input type="checkbox" id="auto-rotate-checkbox" class="modern-checkbox" checked>
+          </div>
+
+          <!-- Frame Lock (Hidden by default) -->
+          <div id="frame-lock-controls" style="display:none; margin-top: 1rem; border-top: var(--border-light); padding-top: 1rem;">
+            <div class="checkbox-control">
+              <label for="lock-frame-checkbox">Lock specific frame</label>
+              <input type="checkbox" id="lock-frame-checkbox" class="modern-checkbox">
+            </div>
+            <div style="display: flex; gap: 0.5rem; align-items: center; margin-top: 0.5rem;">
+              <input type="number" id="lock-frame-input" class="frame-input" value="0" min="0" step="1" style="width: 70px;">
+              <button id="lock-current-btn" class="lock-btn">Set Current</button>
+            </div>
+          </div>
+        </div>
+
+        <!-- Viewport Settings -->
+        <div class="control-section">
+          <h3>Viewport & Render</h3>
+          
+          <div class="slider-control">
+            <div class="slider-label">
+              <span>Model Scale</span>
+              <span class="slider-value" id="scale-value">1.00x</span>
+            </div>
+            <input type="range" id="scale-slider" class="modern-slider" min="0.1" max="5.0" step="0.1" value="1.0">
+          </div>
+
+          <div class="checkbox-control">
+            <label for="show-skeleton-checkbox">Show Skeleton</label>
+            <input type="checkbox" id="show-skeleton-checkbox" class="modern-checkbox">
+          </div>
+
+          <div class="checkbox-control">
+            <label for="wireframe-checkbox">Wireframe Mode</label>
+            <input type="checkbox" id="wireframe-checkbox" class="modern-checkbox">
+          </div>
+
+          <div class="checkbox-control">
+            <label for="show-bbox-checkbox">Bounding Box</label>
+            <input type="checkbox" id="show-bbox-checkbox" class="modern-checkbox">
+          </div>
+
+          <div class="checkbox-control">
+            <label for="show-axes-checkbox">Show Axes</label>
+            <input type="checkbox" id="show-axes-checkbox" class="modern-checkbox">
+          </div>
+
+          <div class="checkbox-control">
+            <label for="show-normals-checkbox">Show Normals</label>
+            <input type="checkbox" id="show-normals-checkbox" class="modern-checkbox">
+          </div>
+
+          <div style="margin-top: 1rem; padding-top: 1rem; border-top: var(--border-light);">
+            <div class="background-control">
+              <label for="bg-color-input">Background</label>
+              <input type="color" id="bg-color-input" value="#0f1115">
+            </div>
+            <div class="brightness-control">
+              <label id="brightness-label" for="brightness-slider">Brightness</label>
+              <input type="range" id="brightness-slider" class="modern-slider" min="0.1" max="2.0" step="0.1" value="1.0">
+            </div>
+          </div>
+        </div>
+
+        <!-- Attachment System -->
+        <div class="control-section">
+          <h3>Attachment</h3>
+
+          <div class="drop-zone" id="attach-drop-zone" title="Attach Model to Bone">
+            <p>Drop attachment <strong>.bmd</strong></p>
+            <input type="file" id="attach-bmd-input" accept=".bmd" style="display: none;" />
+          </div>
+
+          <div id="attach-controls" style="display: none; margin-top: 1rem;">
+            <label for="attach-bone-select" style="display: block; margin-bottom: 0.5rem; font-size: 0.85rem; color: var(--text-muted);">Select Bone</label>
+            <select id="attach-bone-select" class="animation-dropdown" style="width: 100%; margin-bottom: 0.5rem;">
+              <option value="">-- Select Bone --</option>
+            </select>
+
+            <div class="slider-control" style="margin-top: 0.75rem;">
+              <div class="slider-label">
+                <span>Bone Navigation</span>
+                <span class="slider-value" id="attach-bone-value">0</span>
+              </div>
+              <input type="range" id="attach-bone-slider" class="modern-slider" min="0" max="0" step="1" value="0">
+            </div>
+
+            <button id="undo-attach-btn" class="modern-btn" style="width: 100%; margin-top: 1rem; background: transparent; border: 1px solid var(--accent-danger); color: var(--accent-danger);">Remove Attachment</button>
+          </div>
+        </div>
+
+        <!-- Diagnostics -->
+        <div class="control-section" id="diagnostics-panel">
+          <h3>Stats</h3>
+          <p>FPS: <span id="diag-fps">0</span></p>
+          <p>Vertices: <span id="diag-meshes-count">0</span></p>
+          <p>Bones: <span id="diag-bones-count">0</span></p>
+          <p>Clips: <span id="diag-actions-count">0</span></p>
+          <p>Keys: <span id="diag-animation-keys">0</span></p>
+          <p>Frame: <span id="diag-current-frame">0</span></p>
+        </div>
+
+        <!-- Export -->
+        <div class="control-section" id="export-controls">
+          <h3>Export</h3>
+          <div style="display: flex; flex-direction: column; gap: 0.5rem;">
+            <button id="export-glb-btn" class="modern-btn">Export GLB</button>
+            <button id="export-textures-btn" disabled class="modern-btn">Export Textures (PNG)</button>
+          </div>
+        </div>
+
+        <!-- Hidden Compatibility Elements (Do not remove) -->
+        <div style="display: none;">
+          <div id="blending-controls"><div id="blending-container"></div></div>
           <label id="speed-label" for="speed-slider">Speed: 1.00x</label>
-        </div>
-        <div class="scale-control" style="display: none;">
           <label id="scale-label" for="scale-slider">Scale: 1.00x</label>
+          <div class="auto-rotate-control"></div>
+          <div class="speed-control"></div>
+          <div class="scale-control"></div>
         </div>
-        <div class="auto-rotate-control" style="display: none;"></div>
+
+      </div>
+    </aside>
+
+    <!-- Main Viewport -->
+    <main class="main-content" id="main-content">
+      <div class="header">
+        <h1>MU BMD Viewer</h1>
       </div>
 
-      <!-- Visualization -->
-      <div class="control-section">
-        <h3>👁️ View</h3>
+      <!-- Toggle Button -->
+      <button class="sidebar-toggle" id="sidebar-toggle" title="Toggle Controls">
+        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <path d="M4 6H20M4 12H20M4 18H20" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+        </svg>
+      </button>
 
-        <div class="checkbox-control">
-          <input type="checkbox" id="show-skeleton-checkbox" class="modern-checkbox">
-          <label for="show-skeleton-checkbox">Show Skeleton</label>
-        </div>
-
-        <div class="checkbox-control">
-          <input type="checkbox" id="wireframe-checkbox" class="modern-checkbox">
-          <label for="wireframe-checkbox">Wireframe</label>
-        </div>
-
-        <div class="checkbox-control">
-          <input type="checkbox" id="show-bbox-checkbox" class="modern-checkbox">
-          <label for="show-bbox-checkbox">Show Bounding Box</label>
-        </div>
-
-        <div class="checkbox-control">
-          <input type="checkbox" id="show-axes-checkbox" class="modern-checkbox">
-          <label for="show-axes-checkbox">Show Axes</label>
-        </div>
-
-        <div class="checkbox-control">
-          <input type="checkbox" id="show-normals-checkbox" class="modern-checkbox">
-          <label for="show-normals-checkbox">Show Vertex Normals</label>
-        </div>
-      </div>
-
-      <!-- Frame lock controls -->
-      <div class="control-section" id="frame-lock-controls" style="display:none">
-        <h3>🔒 Frame Lock</h3>
-        <div class="checkbox-control">
-          <input type="checkbox" id="lock-frame-checkbox" class="modern-checkbox">
-          <label for="lock-frame-checkbox">Lock on frame</label>
-        </div>
-        <div style="display: flex; gap: 0.5rem; align-items: center;">
-          <input type="number" id="lock-frame-input" class="frame-input" value="0" min="0" step="1">
-          <button id="lock-current-btn" class="lock-btn" title="Set to current frame">
-            ⇥ current
-          </button>
-        </div>
-      </div>
-
-      <!-- Diagnostics -->
-      <div class="control-section" id="diagnostics-panel">
-        <h3>📊 Diagnostics</h3>
-        <p>Actions (clips): <span id="diag-actions-count">0</span></p>
-        <p>Frames in action: <span id="diag-animation-keys">0</span></p>
-        <p>Current frame: <span id="diag-current-frame">N/A</span></p>
-        <p>Bones: <span id="diag-bones-count">0</span></p>
-        <p>Meshes: <span id="diag-meshes-count">0</span></p>
-        <p>FPS: <span id="diag-fps">0</span></p>
-      </div>
-
-      <!-- Mesh blending -->
-      <div class="control-section" id="blending-controls" style="display:none">
-        <h3>🌈 Mesh Blending</h3>
-        <div id="blending-container"></div>
-      </div>
-
-      <!-- Background color and brightness control -->
-      <div class="control-section">
-        <h3>🎨 Background</h3>
-
-        <!-- BACKGROUND COLOR -->
-        <div class="background-control">
-          <label for="bg-color-input">Background color:</label>
-          <input type="color" id="bg-color-input" value="#1a1a1a">
-        </div>
-
-        <!-- BRIGHTNESS -->
-        <div class="brightness-control">
-          <label id="brightness-label" for="brightness-slider">Brightness: 1.00×</label>
-          <input type="range" id="brightness-slider" min="0.1" max="2.0" step="0.1" value="1.0">
-        </div>
-      </div>
-    </div>
-  </div>
-
-  <!-- Main content -->
-  <div class="main-content" id="main-content">
-    <div class="header">
-      <h1>MU Online BMD Viewer</h1>
-      <p>A modern BMD file viewer with Three.js</p>
-    </div>
-
-    <div id="status">Ready. Open the control panel to begin.</div>
-
-    <div id="canvas-container"></div>
-    <div id="animations-container"></div>
+      <div id="canvas-container"></div>
+      
+      <!-- Animation Bar -->
+      <div id="animations-container"></div>
+      
+      <div id="status">Ready</div>
+    </main>
   </div>
 
   <script>
-    // Sidebar functionality
+    // UI Logic (Sidebar toggle & simple interactions)
     const sidebarToggle = document.getElementById('sidebar-toggle');
     const sidebar = document.getElementById('sidebar');
-    const closeSidebar = document.getElementById('close-sidebar');
-    const mainContent = document.getElementById('main-content');
+    
+    sidebarToggle.addEventListener('click', () => {
+      sidebar.classList.toggle('closed');
+      // Adjust button icon based on state if needed, or just keep hamburger
+    });
 
-    function toggleSidebar() {
-      sidebar.classList.toggle('open');
-      sidebarToggle.classList.toggle('open');
-      mainContent.classList.toggle('sidebar-open');
-    }
-
-    sidebarToggle.addEventListener('click', toggleSidebar);
-    if (closeSidebar) {
-      closeSidebar.addEventListener('click', toggleSidebar);
-    }
-
-    // Update slider values and original labels for compatibility
+    // Update slider labels for visual feedback
     const speedSlider = document.getElementById('speed-slider');
     const speedValue = document.getElementById('speed-value');
-    const speedLabel = document.getElementById('speed-label');
+    
+    speedSlider.addEventListener('input', (e) => {
+      speedValue.textContent = parseFloat(e.target.value).toFixed(2) + 'x';
+    });
+
     const scaleSlider = document.getElementById('scale-slider');
     const scaleValue = document.getElementById('scale-value');
-    const scaleLabel = document.getElementById('scale-label');
-
-    speedSlider.addEventListener('input', (e) => {
-      const value = e.target.value;
-      speedValue.textContent = value + 'x';
-      if (speedLabel) {
-        speedLabel.textContent = `Speed: ${parseFloat(value).toFixed(2)}x`;
-      }
-    });
-
+    
     scaleSlider.addEventListener('input', (e) => {
-      const value = e.target.value;
-      scaleValue.textContent = value + 'x';
-      if (scaleLabel) {
-        scaleLabel.textContent = `Scale: ${parseFloat(value).toFixed(2)}x`;
-      }
+      scaleValue.textContent = parseFloat(e.target.value).toFixed(2) + 'x';
     });
 
-    // File input handlers
-    const bmdDropZone = document.getElementById('bmd-drop-zone');
-    const bmdFileInput = document.getElementById('bmd-file-input');
-    const animBmdDropZone = document.getElementById('anim-bmd-drop-zone');
-    const animBmdFileInput = document.getElementById('anim-bmd-file-input');
-    const textureDropZone = document.getElementById('texture-drop-zone');
-    const textureFileInput = document.getElementById('texture-file-input');
+    // Drop zone handling is now fully managed in main.ts
 
-    // BMD file handlers
-    // bmdDropZone.addEventListener('click', (e) => {
-    //   if (e.target === bmdFileInput) return;
-    //   bmdFileInput.click();
-    //   e.stopPropagation();
-    // });
-    bmdDropZone.addEventListener('dragover', (e) => {
-      e.preventDefault();
-      bmdDropZone.classList.add('drag-over');
-    });
-    bmdDropZone.addEventListener('dragleave', () => {
-      bmdDropZone.classList.remove('drag-over');
-    });
-    bmdDropZone.addEventListener('drop', (e) => {
-      e.preventDefault();
-      bmdDropZone.classList.remove('drag-over');
-    });
-
-    // Animation BMD file handlers
-    animBmdDropZone.addEventListener('dragover', (e) => {
-      e.preventDefault();
-      animBmdDropZone.classList.add('drag-over');
-    });
-    animBmdDropZone.addEventListener('dragleave', () => {
-      animBmdDropZone.classList.remove('drag-over');
-    });
-    animBmdDropZone.addEventListener('drop', (e) => {
-      e.preventDefault();
-      animBmdDropZone.classList.remove('drag-over');
-    });
-
-    // Texture file handlers
-    // textureDropZone.addEventListener('click', () => textureFileInput.click());
-    textureDropZone.addEventListener('dragover', (e) => {
-      e.preventDefault();
-      textureDropZone.classList.add('drag-over');
-    });
-    textureDropZone.addEventListener('dragleave', () => {
-      textureDropZone.classList.remove('drag-over');
-    });
-    textureDropZone.addEventListener('drop', (e) => {
-      e.preventDefault();
-      textureDropZone.classList.remove('drag-over');
-    });
-
-    // Animation buttons
-    document.addEventListener('click', (e) => {
-      if (e.target.classList.contains('animation-btn')) {
-        document.querySelectorAll('.animation-btn').forEach(btn => {
-          btn.classList.remove('active');
-        });
+    // Animation Button Highlighting (Delegation)
+    document.getElementById('animations-container').addEventListener('click', (e) => {
+      if (e.target.tagName === 'BUTTON') {
+        document.querySelectorAll('#animations-container button').forEach(b => b.classList.remove('active'));
         e.target.classList.add('active');
       }
     });
-
-    // Example animation buttons (replace with your actual animation logic)
-    setTimeout(() => {
-      const animationsContainer = document.getElementById('animations-container');
-      const exampleAnimations = ['Idle', 'Walk', 'Attack', 'Die', 'Run'];
-
-      exampleAnimations.forEach(animation => {
-        const btn = document.createElement('button');
-        btn.className = 'animation-btn';
-        btn.textContent = animation;
-        animationsContainer.appendChild(btn);
-      });
-    }, 1000);
   </script>
 </body>
 
