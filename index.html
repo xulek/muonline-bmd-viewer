@@ -1,248 +1,194 @@
 <!DOCTYPE html>
 <html lang="en">
-
 <head>
-  <meta charset="UTF-8" />
-  <link rel="icon" type="image/svg+xml" href="/vite.svg" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>MU Online BMD Viewer</title>
-  <!-- Preload fonts for better performance -->
-  <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
-  <script type="module" crossorigin src="/muonline-bmd-viewer/assets/index-_smK2yyF.js"></script>
-  <link rel="stylesheet" crossorigin href="/muonline-bmd-viewer/assets/index-CKDMHPVF.css">
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+    body {
+      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 20px;
+    }
+    .container {
+      background: white;
+      border-radius: 20px;
+      box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+      max-width: 800px;
+      width: 100%;
+      padding: 60px 40px;
+      text-align: center;
+    }
+    h1 {
+      font-size: 3rem;
+      color: #333;
+      margin-bottom: 1rem;
+    }
+    .subtitle {
+      font-size: 1.2rem;
+      color: #666;
+      margin-bottom: 3rem;
+    }
+    .options {
+      display: flex;
+      gap: 30px;
+      justify-content: center;
+      flex-wrap: wrap;
+    }
+    .option-card {
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      border-radius: 15px;
+      padding: 40px 30px;
+      flex: 1;
+      min-width: 280px;
+      max-width: 350px;
+      color: white;
+      text-decoration: none;
+      transition: transform 0.3s, box-shadow 0.3s;
+      cursor: pointer;
+    }
+    .option-card:hover {
+      transform: translateY(-10px);
+      box-shadow: 0 15px 40px rgba(0,0,0,0.3);
+    }
+    .option-icon {
+      font-size: 4rem;
+      margin-bottom: 1rem;
+    }
+    .option-title {
+      font-size: 1.8rem;
+      font-weight: bold;
+      margin-bottom: 0.5rem;
+    }
+    .option-desc {
+      font-size: 1rem;
+      opacity: 0.9;
+      line-height: 1.5;
+    }
+    .desktop-card {
+      background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
+    }
+    .downloads {
+      margin-top: 2rem;
+      padding-top: 2rem;
+      border-top: 2px solid #eee;
+    }
+    .download-links {
+      display: flex;
+      gap: 15px;
+      justify-content: center;
+      flex-wrap: wrap;
+      margin-top: 1rem;
+    }
+    .download-btn {
+      background: #4CAF50;
+      color: white;
+      padding: 12px 24px;
+      border-radius: 8px;
+      text-decoration: none;
+      font-weight: bold;
+      transition: background 0.3s;
+    }
+    .download-btn:hover {
+      background: #45a049;
+    }
+    .features {
+      margin-top: 3rem;
+      text-align: left;
+      padding: 30px;
+      background: #f8f9fa;
+      border-radius: 15px;
+    }
+    .features h3 {
+      color: #667eea;
+      margin-bottom: 1rem;
+    }
+    .features ul {
+      list-style: none;
+      padding-left: 0;
+    }
+    .features li {
+      padding: 8px 0;
+      padding-left: 30px;
+      position: relative;
+      color: #555;
+    }
+    .features li:before {
+      content: "✓";
+      position: absolute;
+      left: 0;
+      color: #4CAF50;
+      font-weight: bold;
+      font-size: 1.2rem;
+    }
+  </style>
 </head>
-
 <body>
-  <div id="app">
-    <!-- Sidebar -->
-    <aside class="sidebar" id="sidebar">
-      <div class="sidebar-content">
-        <div class="sidebar-header">
-          <h2 class="sidebar-title">🛠️ BMD Controls</h2>
+  <div class="container">
+    <h1>🎮 MU Online BMD Viewer</h1>
+    <p class="subtitle">View and explore MU Online 3D models</p>
+
+    <div class="options">
+      <a href="./app/" class="option-card">
+        <div class="option-icon">🌐</div>
+        <div class="option-title">Web App</div>
+        <div class="option-desc">
+          Launch instantly in your browser<br>
+          No installation required
         </div>
+      </a>
 
-        <!-- File Loading -->
-        <div class="control-section">
-          <h3>Import Assets</h3>
-          
-          <div class="drop-zone" id="bmd-drop-zone" title="Load Main Model">
-            <p>Drop <strong>.bmd</strong> model here</p>
-            <input type="file" id="bmd-file-input" accept=".bmd" style="display: none;" />
-          </div>
-
-          <div class="drop-zone" id="anim-bmd-drop-zone" title="Load External Animations">
-            <p>Drop animation <strong>.bmd</strong> (optional)</p>
-            <input type="file" id="anim-bmd-file-input" accept=".bmd" style="display: none;" />
-          </div>
-
-          <!-- Texture Loading (Initially Hidden) -->
-          <div id="texture-controls" style="display: none; margin-top: 1rem;">
-            <p id="texture-info-text" style="font-size: 0.8rem; color: var(--accent-primary); margin-bottom: 0.5rem;"></p>
-            <div class="drop-zone" id="texture-drop-zone">
-              <p>Drop textures (.jpg, .tga, .ozj)</p>
-              <input type="file" id="texture-file-input" accept=".jpg,.jpeg,.png,.tga,.ozt,.ozj" multiple style="display: none;" />
-            </div>
-          </div>
+      <div class="option-card desktop-card" onclick="scrollToDownloads()">
+        <div class="option-icon">🖥️</div>
+        <div class="option-title">Desktop App</div>
+        <div class="option-desc">
+          Full power with file system access<br>
+          Auto-search for textures
         </div>
-
-        <!-- Animation Settings -->
-        <div class="control-section">
-          <h3>Animation Settings</h3>
-          
-          <div class="slider-control">
-            <div class="slider-label">
-              <span>Playback Speed</span>
-              <span class="slider-value" id="speed-value">0.20x</span>
-            </div>
-            <input type="range" id="speed-slider" class="modern-slider" min="0.1" max="2.0" step="0.1" value="0.2">
-          </div>
-
-          <div class="checkbox-control">
-            <label for="auto-rotate-checkbox">Auto-rotate Model</label>
-            <input type="checkbox" id="auto-rotate-checkbox" class="modern-checkbox" checked>
-          </div>
-
-          <!-- Frame Lock (Hidden by default) -->
-          <div id="frame-lock-controls" style="display:none; margin-top: 1rem; border-top: var(--border-light); padding-top: 1rem;">
-            <div class="checkbox-control">
-              <label for="lock-frame-checkbox">Lock specific frame</label>
-              <input type="checkbox" id="lock-frame-checkbox" class="modern-checkbox">
-            </div>
-            <div style="display: flex; gap: 0.5rem; align-items: center; margin-top: 0.5rem;">
-              <input type="number" id="lock-frame-input" class="frame-input" value="0" min="0" step="1" style="width: 70px;">
-              <button id="lock-current-btn" class="lock-btn">Set Current</button>
-            </div>
-          </div>
-        </div>
-
-        <!-- Viewport Settings -->
-        <div class="control-section">
-          <h3>Viewport & Render</h3>
-          
-          <div class="slider-control">
-            <div class="slider-label">
-              <span>Model Scale</span>
-              <span class="slider-value" id="scale-value">1.00x</span>
-            </div>
-            <input type="range" id="scale-slider" class="modern-slider" min="0.1" max="5.0" step="0.1" value="1.0">
-          </div>
-
-          <div class="checkbox-control">
-            <label for="show-skeleton-checkbox">Show Skeleton</label>
-            <input type="checkbox" id="show-skeleton-checkbox" class="modern-checkbox">
-          </div>
-
-          <div class="checkbox-control">
-            <label for="wireframe-checkbox">Wireframe Mode</label>
-            <input type="checkbox" id="wireframe-checkbox" class="modern-checkbox">
-          </div>
-
-          <div class="checkbox-control">
-            <label for="show-bbox-checkbox">Bounding Box</label>
-            <input type="checkbox" id="show-bbox-checkbox" class="modern-checkbox">
-          </div>
-
-          <div class="checkbox-control">
-            <label for="show-axes-checkbox">Show Axes</label>
-            <input type="checkbox" id="show-axes-checkbox" class="modern-checkbox">
-          </div>
-
-          <div class="checkbox-control">
-            <label for="show-normals-checkbox">Show Normals</label>
-            <input type="checkbox" id="show-normals-checkbox" class="modern-checkbox">
-          </div>
-
-          <div style="margin-top: 1rem; padding-top: 1rem; border-top: var(--border-light);">
-            <div class="background-control">
-              <label for="bg-color-input">Background</label>
-              <input type="color" id="bg-color-input" value="#0f1115">
-            </div>
-            <div class="brightness-control">
-              <label id="brightness-label" for="brightness-slider">Brightness</label>
-              <input type="range" id="brightness-slider" class="modern-slider" min="0.1" max="2.0" step="0.1" value="1.0">
-            </div>
-          </div>
-        </div>
-
-        <!-- Attachment System -->
-        <div class="control-section">
-          <h3>Attachment</h3>
-
-          <div class="drop-zone" id="attach-drop-zone" title="Attach Model to Bone">
-            <p>Drop attachment <strong>.bmd</strong></p>
-            <input type="file" id="attach-bmd-input" accept=".bmd" style="display: none;" />
-          </div>
-
-          <div id="attach-controls" style="display: none; margin-top: 1rem;">
-            <label for="attach-bone-select" style="display: block; margin-bottom: 0.5rem; font-size: 0.85rem; color: var(--text-muted);">Select Bone</label>
-            <select id="attach-bone-select" class="animation-dropdown" style="width: 100%; margin-bottom: 0.5rem;">
-              <option value="">-- Select Bone --</option>
-            </select>
-
-            <div class="slider-control" style="margin-top: 0.75rem;">
-              <div class="slider-label">
-                <span>Bone Navigation</span>
-                <span class="slider-value" id="attach-bone-value">0</span>
-              </div>
-              <input type="range" id="attach-bone-slider" class="modern-slider" min="0" max="0" step="1" value="0">
-            </div>
-
-            <button id="undo-attach-btn" class="modern-btn" style="width: 100%; margin-top: 1rem; background: transparent; border: 1px solid var(--accent-danger); color: var(--accent-danger);">Remove Attachment</button>
-          </div>
-        </div>
-
-        <!-- Diagnostics -->
-        <div class="control-section" id="diagnostics-panel">
-          <h3>Stats</h3>
-          <p>FPS: <span id="diag-fps">0</span></p>
-          <p>Vertices: <span id="diag-meshes-count">0</span></p>
-          <p>Bones: <span id="diag-bones-count">0</span></p>
-          <p>Clips: <span id="diag-actions-count">0</span></p>
-          <p>Keys: <span id="diag-animation-keys">0</span></p>
-          <p>Frame: <span id="diag-current-frame">0</span></p>
-        </div>
-
-        <!-- Export -->
-        <div class="control-section" id="export-controls">
-          <h3>Export</h3>
-          <div style="display: flex; flex-direction: column; gap: 0.5rem;">
-            <button id="export-glb-btn" class="modern-btn">Export GLB</button>
-            <button id="export-textures-btn" disabled class="modern-btn">Export Textures (PNG)</button>
-          </div>
-        </div>
-
-        <!-- Hidden Compatibility Elements (Do not remove) -->
-        <div style="display: none;">
-          <div id="blending-controls"><div id="blending-container"></div></div>
-          <label id="speed-label" for="speed-slider">Speed: 1.00x</label>
-          <label id="scale-label" for="scale-slider">Scale: 1.00x</label>
-          <div class="auto-rotate-control"></div>
-          <div class="speed-control"></div>
-          <div class="scale-control"></div>
-        </div>
-
       </div>
-    </aside>
+    </div>
 
-    <!-- Main Viewport -->
-    <main class="main-content" id="main-content">
-      <div class="header">
-        <h1>MU BMD Viewer</h1>
+    <div class="features">
+      <h3>Features</h3>
+      <ul>
+        <li>Load and view BMD 3D models</li>
+        <li>Support for animations and attachments</li>
+        <li>Texture loading (.jpg, .tga, .ozj, .ozt)</li>
+        <li>Export to GLTF format</li>
+        <li>Desktop: Automatic texture search in folders</li>
+        <li>Desktop: Native file system access</li>
+      </ul>
+    </div>
+
+    <div class="downloads" id="downloads">
+      <h3 style="color: #667eea; margin-bottom: 1rem;">📥 Download Desktop App</h3>
+      <p style="margin-bottom: 1rem; color: #666;">
+        Download the latest release from GitHub
+      </p>
+      <div class="download-links">
+        <a href="https://github.com/xulek/muonline-bmd-viewer/releases/latest" class="download-btn" style="background: #667eea;">
+          📦 View Latest Release
+        </a>
       </div>
-
-      <!-- Toggle Button -->
-      <button class="sidebar-toggle" id="sidebar-toggle" title="Toggle Controls">
-        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-          <path d="M4 6H20M4 12H20M4 18H20" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
-        </svg>
-      </button>
-
-      <div id="canvas-container"></div>
-      
-      <!-- Animation Bar -->
-      <div id="animations-container"></div>
-      
-      <div id="status">Ready</div>
-    </main>
+      <p style="margin-top: 1rem; color: #888; font-size: 0.9rem;">
+        Available for Windows (x64) and Linux (x64)
+      </p>
+    </div>
   </div>
 
   <script>
-    // UI Logic (Sidebar toggle & simple interactions)
-    const sidebarToggle = document.getElementById('sidebar-toggle');
-    const sidebar = document.getElementById('sidebar');
-    
-    sidebarToggle.addEventListener('click', () => {
-      sidebar.classList.toggle('closed');
-      // Adjust button icon based on state if needed, or just keep hamburger
-    });
-
-    // Update slider labels for visual feedback
-    const speedSlider = document.getElementById('speed-slider');
-    const speedValue = document.getElementById('speed-value');
-    
-    speedSlider.addEventListener('input', (e) => {
-      speedValue.textContent = parseFloat(e.target.value).toFixed(2) + 'x';
-    });
-
-    const scaleSlider = document.getElementById('scale-slider');
-    const scaleValue = document.getElementById('scale-value');
-    
-    scaleSlider.addEventListener('input', (e) => {
-      scaleValue.textContent = parseFloat(e.target.value).toFixed(2) + 'x';
-    });
-
-    // Drop zone handling is now fully managed in main.ts
-
-    // Animation Button Highlighting (Delegation)
-    document.getElementById('animations-container').addEventListener('click', (e) => {
-      if (e.target.tagName === 'BUTTON') {
-        document.querySelectorAll('#animations-container button').forEach(b => b.classList.remove('active'));
-        e.target.classList.add('active');
-      }
-    });
+    function scrollToDownloads() {
+      document.getElementById('downloads').scrollIntoView({ behavior: 'smooth' });
+    }
   </script>
 </body>
-
 </html>

@@ -1,0 +1,248 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8" />
+  <link rel="icon" type="image/svg+xml" href="/vite.svg" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>MU Online BMD Viewer</title>
+  <!-- Preload fonts for better performance -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+  <script type="module" crossorigin src="/muonline-bmd-viewer/assets/index-gK4L1FSo.js"></script>
+  <link rel="stylesheet" crossorigin href="/muonline-bmd-viewer/assets/index-CKDMHPVF.css">
+</head>
+
+<body>
+  <div id="app">
+    <!-- Sidebar -->
+    <aside class="sidebar" id="sidebar">
+      <div class="sidebar-content">
+        <div class="sidebar-header">
+          <h2 class="sidebar-title">🛠️ BMD Controls</h2>
+        </div>
+
+        <!-- File Loading -->
+        <div class="control-section">
+          <h3>Import Assets</h3>
+          
+          <div class="drop-zone" id="bmd-drop-zone" title="Load Main Model">
+            <p>Drop <strong>.bmd</strong> model here</p>
+            <input type="file" id="bmd-file-input" accept=".bmd" style="display: none;" />
+          </div>
+
+          <div class="drop-zone" id="anim-bmd-drop-zone" title="Load External Animations">
+            <p>Drop animation <strong>.bmd</strong> (optional)</p>
+            <input type="file" id="anim-bmd-file-input" accept=".bmd" style="display: none;" />
+          </div>
+
+          <!-- Texture Loading (Initially Hidden) -->
+          <div id="texture-controls" style="display: none; margin-top: 1rem;">
+            <p id="texture-info-text" style="font-size: 0.8rem; color: var(--accent-primary); margin-bottom: 0.5rem;"></p>
+            <div class="drop-zone" id="texture-drop-zone">
+              <p>Drop textures (.jpg, .tga, .ozj)</p>
+              <input type="file" id="texture-file-input" accept=".jpg,.jpeg,.png,.tga,.ozt,.ozj" multiple style="display: none;" />
+            </div>
+          </div>
+        </div>
+
+        <!-- Animation Settings -->
+        <div class="control-section">
+          <h3>Animation Settings</h3>
+          
+          <div class="slider-control">
+            <div class="slider-label">
+              <span>Playback Speed</span>
+              <span class="slider-value" id="speed-value">0.20x</span>
+            </div>
+            <input type="range" id="speed-slider" class="modern-slider" min="0.1" max="2.0" step="0.1" value="0.2">
+          </div>
+
+          <div class="checkbox-control">
+            <label for="auto-rotate-checkbox">Auto-rotate Model</label>
+            <input type="checkbox" id="auto-rotate-checkbox" class="modern-checkbox" checked>
+          </div>
+
+          <!-- Frame Lock (Hidden by default) -->
+          <div id="frame-lock-controls" style="display:none; margin-top: 1rem; border-top: var(--border-light); padding-top: 1rem;">
+            <div class="checkbox-control">
+              <label for="lock-frame-checkbox">Lock specific frame</label>
+              <input type="checkbox" id="lock-frame-checkbox" class="modern-checkbox">
+            </div>
+            <div style="display: flex; gap: 0.5rem; align-items: center; margin-top: 0.5rem;">
+              <input type="number" id="lock-frame-input" class="frame-input" value="0" min="0" step="1" style="width: 70px;">
+              <button id="lock-current-btn" class="lock-btn">Set Current</button>
+            </div>
+          </div>
+        </div>
+
+        <!-- Viewport Settings -->
+        <div class="control-section">
+          <h3>Viewport & Render</h3>
+          
+          <div class="slider-control">
+            <div class="slider-label">
+              <span>Model Scale</span>
+              <span class="slider-value" id="scale-value">1.00x</span>
+            </div>
+            <input type="range" id="scale-slider" class="modern-slider" min="0.1" max="5.0" step="0.1" value="1.0">
+          </div>
+
+          <div class="checkbox-control">
+            <label for="show-skeleton-checkbox">Show Skeleton</label>
+            <input type="checkbox" id="show-skeleton-checkbox" class="modern-checkbox">
+          </div>
+
+          <div class="checkbox-control">
+            <label for="wireframe-checkbox">Wireframe Mode</label>
+            <input type="checkbox" id="wireframe-checkbox" class="modern-checkbox">
+          </div>
+
+          <div class="checkbox-control">
+            <label for="show-bbox-checkbox">Bounding Box</label>
+            <input type="checkbox" id="show-bbox-checkbox" class="modern-checkbox">
+          </div>
+
+          <div class="checkbox-control">
+            <label for="show-axes-checkbox">Show Axes</label>
+            <input type="checkbox" id="show-axes-checkbox" class="modern-checkbox">
+          </div>
+
+          <div class="checkbox-control">
+            <label for="show-normals-checkbox">Show Normals</label>
+            <input type="checkbox" id="show-normals-checkbox" class="modern-checkbox">
+          </div>
+
+          <div style="margin-top: 1rem; padding-top: 1rem; border-top: var(--border-light);">
+            <div class="background-control">
+              <label for="bg-color-input">Background</label>
+              <input type="color" id="bg-color-input" value="#0f1115">
+            </div>
+            <div class="brightness-control">
+              <label id="brightness-label" for="brightness-slider">Brightness</label>
+              <input type="range" id="brightness-slider" class="modern-slider" min="0.1" max="2.0" step="0.1" value="1.0">
+            </div>
+          </div>
+        </div>
+
+        <!-- Attachment System -->
+        <div class="control-section">
+          <h3>Attachment</h3>
+
+          <div class="drop-zone" id="attach-drop-zone" title="Attach Model to Bone">
+            <p>Drop attachment <strong>.bmd</strong></p>
+            <input type="file" id="attach-bmd-input" accept=".bmd" style="display: none;" />
+          </div>
+
+          <div id="attach-controls" style="display: none; margin-top: 1rem;">
+            <label for="attach-bone-select" style="display: block; margin-bottom: 0.5rem; font-size: 0.85rem; color: var(--text-muted);">Select Bone</label>
+            <select id="attach-bone-select" class="animation-dropdown" style="width: 100%; margin-bottom: 0.5rem;">
+              <option value="">-- Select Bone --</option>
+            </select>
+
+            <div class="slider-control" style="margin-top: 0.75rem;">
+              <div class="slider-label">
+                <span>Bone Navigation</span>
+                <span class="slider-value" id="attach-bone-value">0</span>
+              </div>
+              <input type="range" id="attach-bone-slider" class="modern-slider" min="0" max="0" step="1" value="0">
+            </div>
+
+            <button id="undo-attach-btn" class="modern-btn" style="width: 100%; margin-top: 1rem; background: transparent; border: 1px solid var(--accent-danger); color: var(--accent-danger);">Remove Attachment</button>
+          </div>
+        </div>
+
+        <!-- Diagnostics -->
+        <div class="control-section" id="diagnostics-panel">
+          <h3>Stats</h3>
+          <p>FPS: <span id="diag-fps">0</span></p>
+          <p>Vertices: <span id="diag-meshes-count">0</span></p>
+          <p>Bones: <span id="diag-bones-count">0</span></p>
+          <p>Clips: <span id="diag-actions-count">0</span></p>
+          <p>Keys: <span id="diag-animation-keys">0</span></p>
+          <p>Frame: <span id="diag-current-frame">0</span></p>
+        </div>
+
+        <!-- Export -->
+        <div class="control-section" id="export-controls">
+          <h3>Export</h3>
+          <div style="display: flex; flex-direction: column; gap: 0.5rem;">
+            <button id="export-glb-btn" class="modern-btn">Export GLB</button>
+            <button id="export-textures-btn" disabled class="modern-btn">Export Textures (PNG)</button>
+          </div>
+        </div>
+
+        <!-- Hidden Compatibility Elements (Do not remove) -->
+        <div style="display: none;">
+          <div id="blending-controls"><div id="blending-container"></div></div>
+          <label id="speed-label" for="speed-slider">Speed: 1.00x</label>
+          <label id="scale-label" for="scale-slider">Scale: 1.00x</label>
+          <div class="auto-rotate-control"></div>
+          <div class="speed-control"></div>
+          <div class="scale-control"></div>
+        </div>
+
+      </div>
+    </aside>
+
+    <!-- Main Viewport -->
+    <main class="main-content" id="main-content">
+      <div class="header">
+        <h1>MU BMD Viewer</h1>
+      </div>
+
+      <!-- Toggle Button -->
+      <button class="sidebar-toggle" id="sidebar-toggle" title="Toggle Controls">
+        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <path d="M4 6H20M4 12H20M4 18H20" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+        </svg>
+      </button>
+
+      <div id="canvas-container"></div>
+      
+      <!-- Animation Bar -->
+      <div id="animations-container"></div>
+      
+      <div id="status">Ready</div>
+    </main>
+  </div>
+
+  <script>
+    // UI Logic (Sidebar toggle & simple interactions)
+    const sidebarToggle = document.getElementById('sidebar-toggle');
+    const sidebar = document.getElementById('sidebar');
+    
+    sidebarToggle.addEventListener('click', () => {
+      sidebar.classList.toggle('closed');
+      // Adjust button icon based on state if needed, or just keep hamburger
+    });
+
+    // Update slider labels for visual feedback
+    const speedSlider = document.getElementById('speed-slider');
+    const speedValue = document.getElementById('speed-value');
+    
+    speedSlider.addEventListener('input', (e) => {
+      speedValue.textContent = parseFloat(e.target.value).toFixed(2) + 'x';
+    });
+
+    const scaleSlider = document.getElementById('scale-slider');
+    const scaleValue = document.getElementById('scale-value');
+    
+    scaleSlider.addEventListener('input', (e) => {
+      scaleValue.textContent = parseFloat(e.target.value).toFixed(2) + 'x';
+    });
+
+    // Drop zone handling is now fully managed in main.ts
+
+    // Animation Button Highlighting (Delegation)
+    document.getElementById('animations-container').addEventListener('click', (e) => {
+      if (e.target.tagName === 'BUTTON') {
+        document.querySelectorAll('#animations-container button').forEach(b => b.classList.remove('active'));
+        e.target.classList.add('active');
+      }
+    });
+  </script>
+</body>
+
+</html>
