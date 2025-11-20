@@ -5,6 +5,7 @@ import { VertexNormalsHelper } from 'three/examples/jsm/helpers/VertexNormalsHel
 import { BMDLoader, convertTgaToDataUrl } from './bmd-loader';
 import { convertOzjToDataUrl } from './ozj-loader';
 import { GLTFExporter } from 'three/examples/jsm/exporters/GLTFExporter.js';
+import { isElectron, autoSearchTextures, readFileFromPath, createFileFromElectronData, getFilePathFromFile } from './electron-helper';
 import './style.css';
 
 class SkinnedVertexNormalsHelper extends THREE.LineSegments {
@@ -114,6 +115,8 @@ class App {
     private requiredTextures: string[] = [];
     private exportBtn!: HTMLButtonElement;        // ← new button
     private textureLoader = new THREE.TextureLoader();
+    private lastBmdFilePath: string | null = null;  // For Electron auto-texture search
+    private lastAttachmentFilePath: string | null = null;  // For Electron auto-texture search (attachments)
 
     // ### NEW ### For rotation
     private isAutoRotating = true;
@@ -309,20 +312,150 @@ class App {
             });
         };
 
-        setupDropZone(bmdZone, bmdInput, files => this.handleBmdFile(files[0]));
+        // Special handler for BMD files in Electron - use file dialog to get path
+        const setupBmdDropZoneElectron = async (zone: HTMLElement, input: HTMLInputElement) => {
+            const clickHandler = async () => {
+                if (isElectron()) {
+                    // In Electron, use native dialog to get file path
+                    const { openFileDialog, readFileFromPath, createFileFromElectronData } = await import('./electron-helper');
+                    const filePath = await openFileDialog([{ name: 'BMD Files', extensions: ['bmd'] }]);
+
+                    if (filePath) {
+                        const fileData = await readFileFromPath(filePath);
+                        if (fileData) {
+                            const file = createFileFromElectronData(fileData.name, fileData.data);
+                            this.handleBmdFile(file, filePath);
+                        }
+                    }
+                } else {
+                    // In browser, use regular file input
+                    input.click();
+                }
+            };
+
+            zone.addEventListener('click', clickHandler);
+            zone.addEventListener('dragover', e => { e.preventDefault(); zone.classList.add('drag-over'); });
+            zone.addEventListener('dragleave', () => zone.classList.remove('drag-over'));
+            zone.addEventListener('drop', (e) => {
+                e.preventDefault();
+                e.stopPropagation();  // Prevent triggering input.change
+                zone.classList.remove('drag-over');
+
+                if (e.dataTransfer?.files && e.dataTransfer.files.length > 0) {
+                    const file = e.dataTransfer.files[0];
+
+                    // Try to get file path using Electron API
+                    let filePath: string | undefined = undefined;
+                    if (isElectron()) {
+                        const electronPath = getFilePathFromFile(file);
+                        if (electronPath) {
+                            filePath = electronPath;
+                            console.log('[BMD drop] Got path from Electron API:', filePath);
+                        } else {
+                            console.warn('[BMD drop] Could not get file path from Electron');
+                        }
+                    }
+
+                    this.handleBmdFile(file, filePath);
+                }
+            });
+            // Only handle input.change if not from drag & drop
+            let isDragging = false;
+            zone.addEventListener('dragenter', () => { isDragging = true; });
+            zone.addEventListener('dragleave', () => { isDragging = false; });
+            input.addEventListener('change', e => {
+                // Skip if this was triggered by drag & drop (we already handled it)
+                if (isDragging) {
+                    isDragging = false;
+                    return;
+                }
+                const list = (e.target as HTMLInputElement).files;
+                if (list?.length) this.handleBmdFile(list[0]);
+            });
+        };
+
+        setupBmdDropZoneElectron(bmdZone, bmdInput);
         setupDropZone(animZone, animInput, files => this.handleAnimBmdFile(files[0]));
         setupDropZone(texZone, texInput, files => this.handleMultipleTextureFiles(files));
 
         // Setup attachment drop zone
         const attachZone = document.getElementById('attach-drop-zone')!;
         const attachInput = document.getElementById('attach-bmd-input') as HTMLInputElement;
-        setupDropZone(attachZone, attachInput, files => {
-            if (files[0]) {
-                document.querySelector('#attach-drop-zone p')!.textContent = `Selected: ${files[0].name}`;
-                this.currentAttachmentFile = files[0];
-                this.setupAttachmentControls();
-            }
-        });
+
+        // Special handler for Electron to get file path
+        const setupAttachmentDropZone = async (zone: HTMLElement, input: HTMLInputElement) => {
+            const clickHandler = async () => {
+                if (isElectron()) {
+                    // In Electron, use native dialog to get file path
+                    const { openFileDialog, readFileFromPath, createFileFromElectronData } = await import('./electron-helper');
+                    const filePath = await openFileDialog([{ name: 'BMD Files', extensions: ['bmd'] }]);
+
+                    if (filePath) {
+                        const fileData = await readFileFromPath(filePath);
+                        if (fileData) {
+                            const file = createFileFromElectronData(fileData.name, fileData.data);
+                            document.querySelector('#attach-drop-zone p')!.textContent = `Selected: ${file.name}`;
+                            this.currentAttachmentFile = file;
+                            this.lastAttachmentFilePath = filePath;
+                            this.setupAttachmentControls();
+                        }
+                    }
+                } else {
+                    // In browser, use regular file input
+                    input.click();
+                }
+            };
+
+            zone.addEventListener('click', clickHandler);
+            zone.addEventListener('dragover', e => { e.preventDefault(); zone.classList.add('drag-over'); });
+            zone.addEventListener('dragleave', () => zone.classList.remove('drag-over'));
+            zone.addEventListener('drop', e => {
+                e.preventDefault();
+                e.stopPropagation();  // Prevent triggering input.change
+                zone.classList.remove('drag-over');
+                if (e.dataTransfer?.files.length) {
+                    const file = e.dataTransfer.files[0];
+
+                    // Try to get file path using Electron API
+                    let filePath: string | undefined = undefined;
+                    if (isElectron()) {
+                        const electronPath = getFilePathFromFile(file);
+                        if (electronPath) {
+                            filePath = electronPath;
+                            console.log('[Attachment drop] Got path from Electron API:', filePath);
+                        } else {
+                            console.warn('[Attachment drop] Could not get file path from Electron');
+                        }
+                    }
+
+                    document.querySelector('#attach-drop-zone p')!.textContent = `Selected: ${file.name}`;
+                    this.currentAttachmentFile = file;
+                    this.lastAttachmentFilePath = filePath || null;
+                    this.setupAttachmentControls();
+                }
+            });
+            // Only handle input.change if not from drag & drop
+            let isDragging = false;
+            zone.addEventListener('dragenter', () => { isDragging = true; });
+            zone.addEventListener('dragleave', () => { isDragging = false; });
+            input.addEventListener('change', e => {
+                // Skip if this was triggered by drag & drop (we already handled it)
+                if (isDragging) {
+                    isDragging = false;
+                    return;
+                }
+                const list = (e.target as HTMLInputElement).files;
+                if (list?.length) {
+                    const file = list[0];
+                    document.querySelector('#attach-drop-zone p')!.textContent = `Selected: ${file.name}`;
+                    this.currentAttachmentFile = file;
+                    this.lastAttachmentFilePath = null; // No path in browser
+                    this.setupAttachmentControls();
+                }
+            });
+        };
+
+        setupAttachmentDropZone(attachZone, attachInput);
 
         // === Show / hide skeleton =========================================
         showSkeletonEl.addEventListener('change', () => {
@@ -407,9 +540,10 @@ class App {
           }
         }
     
-    private handleBmdFile = (file: File) => {
+    private handleBmdFile = (file: File, filePath?: string) => {
         console.log(`[App] handleBmdFile("${file.name}")`);
         this.bmdFile = file;
+        this.lastBmdFilePath = filePath || null;  // Store file path for Electron texture search
         document.querySelector('#bmd-drop-zone p')!.textContent = `Selected: ${file.name}`;
         this.loadAndDisplayModel();
     }
@@ -509,6 +643,40 @@ class App {
             this.updateDiagnosticInfo();
             if (this.exportBtn) this.exportBtn.disabled = false;
 
+            // Auto-search and load textures in Electron
+            if (isElectron() && this.lastBmdFilePath && requiredTextures.length > 0) {
+                console.log('%c[Electron] Auto-searching textures...', 'color: #4CAF50');
+                console.log('[Electron] Required textures from BMD:', requiredTextures);
+                console.log('[Electron] BMD file path:', this.lastBmdFilePath);
+                statusEl.textContent = 'Searching for textures...';
+
+                try {
+                    const foundTextures = await autoSearchTextures(this.lastBmdFilePath, requiredTextures);
+                    const foundCount = Object.keys(foundTextures).length;
+                    console.log('[Electron] Search result:', foundTextures);
+
+                    if (foundCount > 0) {
+                        console.log(`%c[Electron] Found ${foundCount} textures, loading...`, 'color: #4CAF50');
+
+                        // Load each found texture
+                        for (const [textureName, texturePath] of Object.entries(foundTextures)) {
+                            const fileData = await readFileFromPath(texturePath);
+                            if (fileData) {
+                                const file = createFileFromElectronData(fileData.name, fileData.data);
+                                await this.loadAndApplyTexture(file);
+                            }
+                        }
+
+                        statusEl.textContent = `Loaded: ${group.name} | Auto-loaded ${foundCount}/${requiredTextures.length} textures`;
+                    } else {
+                        statusEl.textContent = `Loaded: ${group.name} | No textures found automatically`;
+                    }
+                } catch (error) {
+                    console.error('[Electron] Error auto-searching textures:', error);
+                    statusEl.textContent = `Loaded: ${group.name} | Texture search failed`;
+                }
+            }
+
             // --- skeleton helper ---
             if (skeletonHelper) {
                 this.scene.remove(skeletonHelper);
@@ -557,17 +725,26 @@ class App {
 
         try {
             const buffer = await this.animBmdFile.arrayBuffer();
-            let skeleton: THREE.Skeleton | null = null;
-            this.loadedGroup.traverse(obj => {
-                if (!skeleton && (obj as THREE.SkinnedMesh).isSkinnedMesh) {
-                    skeleton = (obj as THREE.SkinnedMesh).skeleton;
-                }
-            });
+
+            // Use mainSkeleton if available (more reliable when attachments are loaded)
+            let skeleton: THREE.Skeleton | null = this.mainSkeleton;
+
+            // Fallback: search in loadedGroup
+            if (!skeleton) {
+                console.log('[loadExternalAnimations] mainSkeleton not available, searching in loadedGroup...');
+                this.loadedGroup.traverse(obj => {
+                    if (!skeleton && (obj as THREE.SkinnedMesh).isSkinnedMesh) {
+                        skeleton = (obj as THREE.SkinnedMesh).skeleton;
+                    }
+                });
+            }
+
             if (!skeleton) {
                 console.warn('No skeleton found for external animations');
                 return;
             }
 
+            console.log('[loadExternalAnimations] Using skeleton with', skeleton.bones.length, 'bones');
             const clips = this.bmdLoader.loadAnimationsFrom(buffer, skeleton);
             if (clips.length) {
                 this.loadedGroup.animations = clips;
@@ -1292,6 +1469,33 @@ class App {
 
         this.requiredTextures.push(...requiredTextures);
         this.updateTextureUI();
+
+        // Auto-search and load textures in Electron
+        if (isElectron() && this.lastAttachmentFilePath && requiredTextures.length > 0) {
+            console.log('%c[Electron] Auto-searching textures for attachment...', 'color: #4CAF50');
+
+            try {
+                const foundTextures = await autoSearchTextures(this.lastAttachmentFilePath, requiredTextures);
+                const foundCount = Object.keys(foundTextures).length;
+
+                if (foundCount > 0) {
+                    console.log(`%c[Electron] Found ${foundCount} textures for attachment, loading...`, 'color: #4CAF50');
+
+                    // Load each found texture
+                    for (const [textureName, texturePath] of Object.entries(foundTextures)) {
+                        const fileData = await readFileFromPath(texturePath);
+                        if (fileData) {
+                            const file = createFileFromElectronData(fileData.name, fileData.data);
+                            await this.loadAndApplyTexture(file);
+                        }
+                    }
+
+                    console.log(`[Electron] Auto-loaded ${foundCount}/${requiredTextures.length} textures for attachment`);
+                }
+            } catch (error) {
+                console.error('[Electron] Error auto-searching textures for attachment:', error);
+            }
+        }
 
         // Update skeleton helper
         if (skeletonHelper) {

@@ -1,21 +1,51 @@
 name: Deploy to GitHub Pages
 on:
   push:
-    branches: [main]      # lub master
+    branches: [main]
 permissions:
   contents: write
 jobs:
-  build:
+  build-and-deploy:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+
       - uses: actions/setup-node@v4
         with:
           node-version: 20
-      - run: npm ci
-      - run: npm run build
-      - name: Deploy
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build Web App (Vite)
+        run: npm run build
+        env:
+          VITE_BASE_PATH: /muonline-bmd-viewer/
+
+      - name: Build Electron App (Linux & Windows)
+        run: npm run electron:build -- --linux --win
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Prepare GitHub Pages structure
+        run: |
+          mkdir -p gh-pages
+          mkdir -p gh-pages/app
+          mkdir -p gh-pages/downloads
+
+          # Copy web app
+          cp -r dist/* gh-pages/app/
+
+          # Copy Electron builds
+          cp release/*.AppImage gh-pages/downloads/ 2>/dev/null || echo "No AppImage found"
+          cp release/*.deb gh-pages/downloads/ 2>/dev/null || echo "No deb found"
+          cp release/*.exe gh-pages/downloads/ 2>/dev/null || echo "No exe found"
+
+          # Copy landing page
+          cp landing.html gh-pages/index.html
+
+      - name: Deploy to GitHub Pages
         uses: peaceiris/actions-gh-pages@v4
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}
-          publish_dir: dist
+          publish_dir: gh-pages

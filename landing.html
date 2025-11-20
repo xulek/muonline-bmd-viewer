@@ -1,0 +1,203 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>MU Online BMD Viewer</title>
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+    body {
+      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 20px;
+    }
+    .container {
+      background: white;
+      border-radius: 20px;
+      box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+      max-width: 800px;
+      width: 100%;
+      padding: 60px 40px;
+      text-align: center;
+    }
+    h1 {
+      font-size: 3rem;
+      color: #333;
+      margin-bottom: 1rem;
+    }
+    .subtitle {
+      font-size: 1.2rem;
+      color: #666;
+      margin-bottom: 3rem;
+    }
+    .options {
+      display: flex;
+      gap: 30px;
+      justify-content: center;
+      flex-wrap: wrap;
+    }
+    .option-card {
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      border-radius: 15px;
+      padding: 40px 30px;
+      flex: 1;
+      min-width: 280px;
+      max-width: 350px;
+      color: white;
+      text-decoration: none;
+      transition: transform 0.3s, box-shadow 0.3s;
+      cursor: pointer;
+    }
+    .option-card:hover {
+      transform: translateY(-10px);
+      box-shadow: 0 15px 40px rgba(0,0,0,0.3);
+    }
+    .option-icon {
+      font-size: 4rem;
+      margin-bottom: 1rem;
+    }
+    .option-title {
+      font-size: 1.8rem;
+      font-weight: bold;
+      margin-bottom: 0.5rem;
+    }
+    .option-desc {
+      font-size: 1rem;
+      opacity: 0.9;
+      line-height: 1.5;
+    }
+    .desktop-card {
+      background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
+    }
+    .downloads {
+      margin-top: 2rem;
+      padding-top: 2rem;
+      border-top: 2px solid #eee;
+    }
+    .download-links {
+      display: flex;
+      gap: 15px;
+      justify-content: center;
+      flex-wrap: wrap;
+      margin-top: 1rem;
+    }
+    .download-btn {
+      background: #4CAF50;
+      color: white;
+      padding: 12px 24px;
+      border-radius: 8px;
+      text-decoration: none;
+      font-weight: bold;
+      transition: background 0.3s;
+    }
+    .download-btn:hover {
+      background: #45a049;
+    }
+    .features {
+      margin-top: 3rem;
+      text-align: left;
+      padding: 30px;
+      background: #f8f9fa;
+      border-radius: 15px;
+    }
+    .features h3 {
+      color: #667eea;
+      margin-bottom: 1rem;
+    }
+    .features ul {
+      list-style: none;
+      padding-left: 0;
+    }
+    .features li {
+      padding: 8px 0;
+      padding-left: 30px;
+      position: relative;
+      color: #555;
+    }
+    .features li:before {
+      content: "✓";
+      position: absolute;
+      left: 0;
+      color: #4CAF50;
+      font-weight: bold;
+      font-size: 1.2rem;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>🎮 MU Online BMD Viewer</h1>
+    <p class="subtitle">View and explore MU Online 3D models</p>
+
+    <div class="options">
+      <a href="./app/" class="option-card">
+        <div class="option-icon">🌐</div>
+        <div class="option-title">Web App</div>
+        <div class="option-desc">
+          Launch instantly in your browser<br>
+          No installation required
+        </div>
+      </a>
+
+      <div class="option-card desktop-card" onclick="scrollToDownloads()">
+        <div class="option-icon">🖥️</div>
+        <div class="option-title">Desktop App</div>
+        <div class="option-desc">
+          Full power with file system access<br>
+          Auto-search for textures
+        </div>
+      </div>
+    </div>
+
+    <div class="features">
+      <h3>Features</h3>
+      <ul>
+        <li>Load and view BMD 3D models</li>
+        <li>Support for animations and attachments</li>
+        <li>Texture loading (.jpg, .tga, .ozj, .ozt)</li>
+        <li>Export to GLTF format</li>
+        <li>Desktop: Automatic texture search in folders</li>
+        <li>Desktop: Native file system access</li>
+      </ul>
+    </div>
+
+    <div class="downloads" id="downloads">
+      <h3 style="color: #667eea; margin-bottom: 1rem;">📥 Download Desktop App</h3>
+
+      <h4 style="color: #555; margin: 1.5rem 0 0.5rem;">Windows</h4>
+      <div class="download-links">
+        <a href="./downloads/bmd-viewer-final Setup 1.1.0.exe" class="download-btn" download>
+          Windows Installer
+        </a>
+        <a href="./downloads/bmd-viewer-final 1.1.0.exe" class="download-btn" download>
+          Windows Portable
+        </a>
+      </div>
+
+      <h4 style="color: #555; margin: 1.5rem 0 0.5rem;">Linux</h4>
+      <div class="download-links">
+        <a href="./downloads/bmd-viewer-final-1.1.0.AppImage" class="download-btn" download>
+          AppImage
+        </a>
+        <a href="./downloads/bmd-viewer-final_1.1.0_amd64.deb" class="download-btn" download>
+          DEB Package
+        </a>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    function scrollToDownloads() {
+      document.getElementById('downloads').scrollIntoView({ behavior: 'smooth' });
+    }
+  </script>
+</body>
+</html>
