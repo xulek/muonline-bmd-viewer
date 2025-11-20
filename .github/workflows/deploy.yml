@@ -52,9 +52,7 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: linux-builds
-          path: |
-            release/*.AppImage
-            release/*.deb
+          path: release/*.AppImage
           if-no-files-found: error
 
   build-windows:
@@ -85,17 +83,13 @@ jobs:
             release/*.exe
           if-no-files-found: error
 
-  deploy:
-    needs: [build-web, build-linux, build-windows]
+  release:
+    needs: [build-linux, build-windows]
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
     steps:
       - uses: actions/checkout@v4
-
-      - name: Download web build
-        uses: actions/download-artifact@v4
-        with:
-          name: web-build
-          path: dist/
 
       - name: Download Linux builds
         uses: actions/download-artifact@v4
@@ -109,19 +103,48 @@ jobs:
           name: windows-builds
           path: release/
 
+      - name: Create Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: v${{ github.run_number }}
+          name: BMD Viewer v1.1.${{ github.run_number }}
+          body: |
+            ## BMD Viewer Desktop
+
+            Download the desktop application for your platform:
+            - **Windows**: BMD Viewer-1.1.0-Setup.exe
+            - **Linux**: BMD Viewer-1.1.0.AppImage
+
+            ### Features
+            - Load and view BMD 3D models
+            - Auto-search for textures in folders
+            - Support for animations and attachments
+            - Export to GLTF format
+          files: |
+            release/*.AppImage
+            release/*.exe
+          draft: false
+          prerelease: false
+
+  deploy:
+    needs: [build-web]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Download web build
+        uses: actions/download-artifact@v4
+        with:
+          name: web-build
+          path: dist/
+
       - name: Prepare GitHub Pages structure
         run: |
           mkdir -p gh-pages
           mkdir -p gh-pages/app
-          mkdir -p gh-pages/downloads
 
           # Copy web app
           cp -r dist/* gh-pages/app/
-
-          # Copy Electron builds
-          cp release/*.AppImage gh-pages/downloads/ 2>/dev/null || echo "No AppImage found"
-          cp release/*.deb gh-pages/downloads/ 2>/dev/null || echo "No deb found"
-          cp release/*.exe gh-pages/downloads/ 2>/dev/null || echo "No exe found"
 
           # Copy landing page
           cp landing.html gh-pages/index.html

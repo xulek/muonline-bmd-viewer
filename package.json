@@ -45,29 +45,44 @@
     "productName": "BMD Viewer",
     "files": [
       "dist/**/*",
-      "electron/**/*"
+      "electron/**/*",
+      "!node_modules/**/*",
+      "node_modules/electron-is-dev/**/*"
     ],
+    "asarUnpack": [],
     "directories": {
       "output": "release"
     },
+    "compression": "maximum",
     "win": {
       "target": [
-        "nsis",
-        "portable"
+        {
+          "target": "nsis",
+          "arch": ["x64"]
+        }
       ],
-      "icon": "public/vite.svg"
+      "icon": "public/vite.svg",
+      "artifactName": "${productName}-${version}-Setup.${ext}"
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true
     },
     "linux": {
       "target": [
-        "AppImage",
-        "deb"
+        {
+          "target": "AppImage",
+          "arch": ["x64"]
+        }
       ],
-      "category": "Graphics"
+      "category": "Graphics",
+      "artifactName": "${productName}-${version}.${ext}"
     },
     "mac": {
       "target": [
-        "dmg",
-        "zip"
+        "dmg"
       ],
       "category": "public.app-category.graphics-design"
     }
