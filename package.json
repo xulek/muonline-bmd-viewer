@@ -10,10 +10,10 @@
     "electron": "concurrently \"npm run dev\" \"wait-on http://localhost:5173 && electron .\"",
     "electron:build": "npm run build && electron-builder"
   },
-  "keywords": [],
-  "author": "",
+  "keywords": ["bmd", "viewer", "mu online", "3d"],
+  "author": "xulek <xulek@example.com>",
   "license": "ISC",
-  "description": "",
+  "description": "BMD Viewer for MU Online 3D models",
   "dependencies": {
     "@lunapaint/tga-codec": "^0.2.0",
     "@types/crypto-js": "^4.2.2",
