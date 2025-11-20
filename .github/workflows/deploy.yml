@@ -45,6 +45,9 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
+      - name: List Linux builds
+        run: ls -lh release/
+
       - name: Upload Linux builds
         uses: actions/upload-artifact@v4
         with:
@@ -52,6 +55,7 @@ jobs:
           path: |
             release/*.AppImage
             release/*.deb
+          if-no-files-found: error
 
   build-windows:
     runs-on: windows-latest
@@ -70,12 +74,16 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
+      - name: List Windows builds
+        run: dir release\
+
       - name: Upload Windows builds
         uses: actions/upload-artifact@v4
         with:
           name: windows-builds
           path: |
             release/*.exe
+          if-no-files-found: error
 
   deploy:
     needs: [build-web, build-linux, build-windows]
