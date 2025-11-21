@@ -2,7 +2,6 @@
 const { app, BrowserWindow, dialog, ipcMain, session } = require('electron');
 const path = require('path');
 const fs = require('fs').promises;
-const isDev = require('electron-is-dev');
 
 let mainWindow;
 
@@ -39,13 +38,14 @@ function createWindow() {
 
   // In development, load from Vite dev server
   // In production, load from built files
-  if (isDev) {
+  if (!app.isPackaged) {
     mainWindow.loadURL('http://localhost:5173');
     mainWindow.webContents.openDevTools();
     console.log('🚀 Running in DEVELOPMENT mode - loading from Vite dev server');
   } else {
-    mainWindow.loadFile(path.join(__dirname, '../dist/index.html'));
-    console.log('📦 Running in PRODUCTION mode - loading from dist/');
+    const indexPath = path.join(__dirname, '../dist/index.html');
+    mainWindow.loadFile(indexPath);
+    console.log('📦 Running in PRODUCTION mode - loading from:', indexPath);
   }
 
   mainWindow.on('closed', () => {
