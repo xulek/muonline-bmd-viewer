@@ -169,7 +169,38 @@ export async function autoSearchTextures(
   const lastSlash = Math.max(bmdFilePath.lastIndexOf('/'), bmdFilePath.lastIndexOf('\\'));
   const bmdDirectory = bmdFilePath.substring(0, lastSlash);
 
-  const foundTextures = await window.electronAPI.searchTextures(bmdDirectory, requiredTextures);
+  // First search in the BMD's directory and subdirectories
+  let foundTextures = await window.electronAPI.searchTextures(bmdDirectory, requiredTextures);
+
+  // Count how many texture names we found
+  const foundCount = Object.keys(foundTextures).length;
+  const requiredCount = requiredTextures.length;
+
+  // If not all textures found, search in parent directory and its subdirectories
+  if (foundCount < requiredCount) {
+    console.log(`[Texture Search] Found ${foundCount}/${requiredCount} textures in current directory, searching parent directory...`);
+
+    const parentSlash = Math.max(bmdDirectory.lastIndexOf('/'), bmdDirectory.lastIndexOf('\\'));
+    if (parentSlash > 0) {
+      const parentDirectory = bmdDirectory.substring(0, parentSlash);
+
+      // Get list of textures we still need
+      const stillNeeded = requiredTextures.filter(tex => {
+        const basename = tex.split(/[\\/]/).pop()!.toLowerCase().replace(/\.[^.]+$/, '');
+        return !foundTextures[basename];
+      });
+
+      if (stillNeeded.length > 0) {
+        const additionalTextures = await window.electronAPI.searchTextures(parentDirectory, stillNeeded);
+
+        // Merge the results
+        foundTextures = { ...foundTextures, ...additionalTextures };
+
+        const finalCount = Object.keys(foundTextures).length;
+        console.log(`[Texture Search] After parent search: ${finalCount}/${requiredCount} textures found`);
+      }
+    }
+  }
 
   return foundTextures;
 }
