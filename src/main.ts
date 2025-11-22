@@ -457,6 +457,58 @@ class App {
 
         setupAttachmentDropZone(attachZone, attachInput);
 
+        // === Drag and drop on canvas (3D scene) ===========================
+        const canvasContainer = document.getElementById('canvas-container')!;
+
+        canvasContainer.addEventListener('dragover', (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+        });
+
+        canvasContainer.addEventListener('drop', async (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+
+            if (!e.dataTransfer?.files || e.dataTransfer.files.length === 0) return;
+
+            const files = Array.from(e.dataTransfer.files);
+
+            // Separate BMD files and texture files
+            const bmdFiles = files.filter(f => f.name.toLowerCase().endsWith('.bmd'));
+            const textureFiles = files.filter(f => {
+                const ext = f.name.toLowerCase().split('.').pop();
+                return ['jpg', 'jpeg', 'png', 'tga', 'ozj', 'ozt'].includes(ext || '');
+            });
+
+            // Handle BMD files (load first one as main model)
+            if (bmdFiles.length > 0) {
+                const file = bmdFiles[0];
+
+                // Try to get file path using Electron API
+                let filePath: string | undefined = undefined;
+                if (isElectron()) {
+                    const electronPath = getFilePathFromFile(file);
+                    if (electronPath) {
+                        filePath = electronPath;
+                        console.log('%c[Canvas drop] Got BMD path from Electron API:', 'color: #4CAF50', filePath);
+                    }
+                }
+
+                await this.handleBmdFile(file, filePath);
+                console.log('%c[Canvas drop] Loaded BMD:', 'color: #4CAF50', file.name);
+            }
+
+            // Handle texture files
+            if (textureFiles.length > 0) {
+                await this.handleMultipleTextureFiles(textureFiles as any);
+                console.log('%c[Canvas drop] Loaded textures:', 'color: #4CAF50', textureFiles.map(f => f.name).join(', '));
+            }
+
+            if (bmdFiles.length === 0 && textureFiles.length === 0) {
+                console.warn('[Canvas drop] No BMD or texture files found in drop');
+            }
+        });
+
         // === Show / hide skeleton =========================================
         showSkeletonEl.addEventListener('change', () => {
             if (skeletonHelper) skeletonHelper.visible = showSkeletonEl.checked;
@@ -656,18 +708,22 @@ class App {
                     console.log('[Electron] Search result:', foundTextures);
 
                     if (foundCount > 0) {
-                        console.log(`%c[Electron] Found ${foundCount} textures, loading...`, 'color: #4CAF50');
+                        // Count total files (each texture name may have multiple files)
+                        const totalFiles = Object.values(foundTextures).reduce((sum, paths) => sum + paths.length, 0);
+                        console.log(`%c[Electron] Found ${foundCount} texture names (${totalFiles} files), loading...`, 'color: #4CAF50');
 
-                        // Load each found texture
-                        for (const [textureName, texturePath] of Object.entries(foundTextures)) {
-                            const fileData = await readFileFromPath(texturePath);
-                            if (fileData) {
-                                const file = createFileFromElectronData(fileData.name, fileData.data);
-                                await this.loadAndApplyTexture(file);
+                        // Load each found texture file
+                        for (const [textureName, texturePaths] of Object.entries(foundTextures)) {
+                            for (const texturePath of texturePaths) {
+                                const fileData = await readFileFromPath(texturePath);
+                                if (fileData) {
+                                    const file = createFileFromElectronData(fileData.name, fileData.data);
+                                    await this.loadAndApplyTexture(file);
+                                }
                             }
                         }
 
-                        statusEl.textContent = `Loaded: ${group.name} | Auto-loaded ${foundCount}/${requiredTextures.length} textures`;
+                        statusEl.textContent = `Loaded: ${group.name} | Auto-loaded ${totalFiles} texture files for ${foundCount} base names`;
                     } else {
                         statusEl.textContent = `Loaded: ${group.name} | No textures found automatically`;
                     }
@@ -888,10 +944,7 @@ class App {
     
         const status = document.getElementById('status')!;
         status.textContent = `Loading: ${file.name}…`;
-        
-        console.log(`=== TEXTURE LOADING: ${file.name} ===`);
-        console.log('Required textures:', this.requiredTextures);
-    
+
         try {
         const ext = file.name.split('.').pop()!.toLowerCase();
         let tex: THREE.Texture;
@@ -959,17 +1012,11 @@ class App {
                     mat.needsUpdate = true;
                     applied = true;
                     if (this.exportBtn) this.exportBtn.disabled = false;
-                    console.log(`  \u2713 Applied "${file.name}" to mesh with texture: "${m.path}"`);
                 }
             });
 
             if (!applied) {
-                console.log('❌ No matches found. Available texture paths:');
-                this.loadedGroup.traverse(obj => {
-                    if ((obj as THREE.Mesh).isMesh && obj.userData.texturePath) {
-                        console.log(`  - ${obj.userData.texturePath}`);
-                    }
-                });
+                console.warn(`No matching mesh found for "${file.name}"`);
             }
 
             status.textContent = applied
@@ -1479,18 +1526,22 @@ class App {
                 const foundCount = Object.keys(foundTextures).length;
 
                 if (foundCount > 0) {
-                    console.log(`%c[Electron] Found ${foundCount} textures for attachment, loading...`, 'color: #4CAF50');
+                    // Count total files (each texture name may have multiple files)
+                    const totalFiles = Object.values(foundTextures).reduce((sum, paths) => sum + paths.length, 0);
+                    console.log(`%c[Electron] Found ${foundCount} texture names (${totalFiles} files) for attachment, loading...`, 'color: #4CAF50');
 
-                    // Load each found texture
-                    for (const [textureName, texturePath] of Object.entries(foundTextures)) {
-                        const fileData = await readFileFromPath(texturePath);
-                        if (fileData) {
-                            const file = createFileFromElectronData(fileData.name, fileData.data);
-                            await this.loadAndApplyTexture(file);
+                    // Load each found texture file
+                    for (const [textureName, texturePaths] of Object.entries(foundTextures)) {
+                        for (const texturePath of texturePaths) {
+                            const fileData = await readFileFromPath(texturePath);
+                            if (fileData) {
+                                const file = createFileFromElectronData(fileData.name, fileData.data);
+                                await this.loadAndApplyTexture(file);
+                            }
                         }
                     }
 
-                    console.log(`[Electron] Auto-loaded ${foundCount}/${requiredTextures.length} textures for attachment`);
+                    console.log(`%c[Electron] Auto-loaded ${totalFiles} texture files for ${foundCount} base names`, 'color: #4CAF50');
                 }
             } catch (error) {
                 console.error('[Electron] Error auto-searching textures for attachment:', error);

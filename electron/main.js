@@ -100,37 +100,22 @@ ipcMain.handle('fs:searchTextures', async (event, startPath, requiredTextures) =
   const foundTextures = {};
   const validExtensions = ['.jpg', '.jpeg', '.png', '.tga', '.ozj', '.ozt'];
 
-  console.log('');
-  console.log('=== TEXTURE SEARCH START ===');
-  console.log('Start path:', startPath);
-  console.log('Required textures (raw):', requiredTextures);
-
   // Normalize required texture names (remove extension, lowercase)
   const requiredNames = requiredTextures.map(tex => {
     const basename = path.basename(tex, path.extname(tex)).toLowerCase();
-    console.log(`  Normalized: "${tex}" -> "${basename}"`);
     return basename;
   });
 
-  console.log('Required names (normalized):', requiredNames);
-
   async function searchDir(dirPath, depth = 0) {
-    if (depth > 3) {
-      console.log(`  Skipping (depth ${depth}): ${dirPath}`);
-      return;
-    }
-
-    console.log(`Searching at depth ${depth}: ${dirPath}`);
+    if (depth > 3) return;
 
     try {
       const entries = await fs.readdir(dirPath, { withFileTypes: true });
-      console.log(`  Found ${entries.length} entries`);
 
       for (const entry of entries) {
         const fullPath = path.join(dirPath, entry.name);
 
         if (entry.isDirectory()) {
-          console.log(`  📁 Dir: ${entry.name}`);
           // Recursively search subdirectories
           await searchDir(fullPath, depth + 1);
         } else if (entry.isFile()) {
@@ -138,7 +123,6 @@ ipcMain.handle('fs:searchTextures', async (event, startPath, requiredTextures) =
           const ext = path.extname(lowerName);
           if (validExtensions.includes(ext)) {
             const nameWithoutExt = path.basename(lowerName, ext);
-            console.log(`  📄 File: ${entry.name} -> nameWithoutExt="${nameWithoutExt}" ext="${ext}"`);
 
             // Check if this texture is required
             if (requiredNames.includes(nameWithoutExt)) {
@@ -147,26 +131,18 @@ ipcMain.handle('fs:searchTextures', async (event, startPath, requiredTextures) =
                 foundTextures[nameWithoutExt] = [];
               }
               foundTextures[nameWithoutExt].push(fullPath);
-              console.log(`    ✅ MATCH! Added: ${entry.name} (total: ${foundTextures[nameWithoutExt].length})`);
-            } else {
-              console.log(`    ❌ Not needed (looking for: ${requiredNames.join(', ')})`);
             }
           }
         }
       }
     } catch (error) {
       // Ignore permission errors, etc.
-      console.warn(`⚠️  Cannot access directory: ${dirPath}`, error.message);
     }
   }
 
   await searchDir(startPath);
 
-  console.log('');
-  console.log(`=== TEXTURE SEARCH COMPLETE ===`);
-  console.log(`Found textures for ${Object.keys(foundTextures).length} / ${requiredNames.length} base names`);
-  console.log('Matched textures:', foundTextures);
-  console.log('');
+  console.log(`[Texture Search] Found ${Object.keys(foundTextures).length}/${requiredNames.length} texture names (${Object.values(foundTextures).reduce((sum, arr) => sum + arr.length, 0)} files total)`);
 
   return foundTextures;
 });

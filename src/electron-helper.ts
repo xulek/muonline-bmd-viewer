@@ -169,13 +169,7 @@ export async function autoSearchTextures(
   const lastSlash = Math.max(bmdFilePath.lastIndexOf('/'), bmdFilePath.lastIndexOf('\\'));
   const bmdDirectory = bmdFilePath.substring(0, lastSlash);
 
-  console.log(`🔍 Auto-searching textures from: ${bmdDirectory}`);
-  console.log(`   Required textures (frontend):`, requiredTextures);
-  console.log(`   Calling searchTextures API...`);
-
   const foundTextures = await window.electronAPI.searchTextures(bmdDirectory, requiredTextures);
-
-  console.log(`   API returned:`, foundTextures);
 
   return foundTextures;
 }
