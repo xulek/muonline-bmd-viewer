@@ -115,12 +115,6 @@ ipcMain.handle('fs:searchTextures', async (event, startPath, requiredTextures) =
   console.log('Required names (normalized):', requiredNames);
 
   async function searchDir(dirPath, depth = 0) {
-    // Early exit if we found all textures
-    if (Object.keys(foundTextures).length === requiredNames.length) {
-      console.log(`  ⚡ All textures found! Stopping search.`);
-      return;
-    }
-
     if (depth > 3) {
       console.log(`  Skipping (depth ${depth}): ${dirPath}`);
       return;
@@ -133,12 +127,6 @@ ipcMain.handle('fs:searchTextures', async (event, startPath, requiredTextures) =
       console.log(`  Found ${entries.length} entries`);
 
       for (const entry of entries) {
-        // Early exit check in loop
-        if (Object.keys(foundTextures).length === requiredNames.length) {
-          console.log(`  ⚡ All textures found! Stopping search.`);
-          return;
-        }
-
         const fullPath = path.join(dirPath, entry.name);
 
         if (entry.isDirectory()) {
@@ -154,13 +142,12 @@ ipcMain.handle('fs:searchTextures', async (event, startPath, requiredTextures) =
 
             // Check if this texture is required
             if (requiredNames.includes(nameWithoutExt)) {
-              // Only add if we haven't found this texture yet
+              // Add ALL files with matching base name (not just first one)
               if (!foundTextures[nameWithoutExt]) {
-                foundTextures[nameWithoutExt] = fullPath;
-                console.log(`    ✅ MATCH! Added: ${entry.name}`);
-              } else {
-                console.log(`    ⚠️  Already found: ${nameWithoutExt}`);
+                foundTextures[nameWithoutExt] = [];
               }
+              foundTextures[nameWithoutExt].push(fullPath);
+              console.log(`    ✅ MATCH! Added: ${entry.name} (total: ${foundTextures[nameWithoutExt].length})`);
             } else {
               console.log(`    ❌ Not needed (looking for: ${requiredNames.join(', ')})`);
             }
@@ -177,7 +164,7 @@ ipcMain.handle('fs:searchTextures', async (event, startPath, requiredTextures) =
 
   console.log('');
   console.log(`=== TEXTURE SEARCH COMPLETE ===`);
-  console.log(`Found: ${Object.keys(foundTextures).length} / ${requiredNames.length}`);
+  console.log(`Found textures for ${Object.keys(foundTextures).length} / ${requiredNames.length} base names`);
   console.log('Matched textures:', foundTextures);
   console.log('');
 

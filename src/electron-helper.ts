@@ -7,7 +7,7 @@ interface ElectronAPI {
   openFile: (options?: { filters?: Array<{ name: string; extensions: string[] }> }) => Promise<string | null>;
   openFiles: (options?: { filters?: Array<{ name: string; extensions: string[] }> }) => Promise<string[]>;
   readFile: (filePath: string) => Promise<{ name: string; data: ArrayBuffer }>;
-  searchTextures: (startPath: string, requiredTextures: string[]) => Promise<Record<string, string>>;
+  searchTextures: (startPath: string, requiredTextures: string[]) => Promise<Record<string, string[]>>;
   getFilePath: (file: File) => string | null;
 }
 
