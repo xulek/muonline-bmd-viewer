@@ -10,7 +10,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
-  <script type="module" crossorigin src="/muonline-bmd-viewer/app/assets/index-CyTHk6V0.js"></script>
+  <script type="module" crossorigin src="/muonline-bmd-viewer/app/assets/index-7xzz4Z0j.js"></script>
   <link rel="stylesheet" crossorigin href="/muonline-bmd-viewer/app/assets/index-CKDMHPVF.css">
 </head>
 
@@ -170,15 +170,20 @@
           <div style="display: flex; flex-direction: column; gap: 0.75rem;">
             <div style="display:flex; gap:0.5rem; align-items:center; flex-wrap:wrap;">
               <label for="gif-width-input">GIF</label>
-              <input id="gif-width-input" type="number" class="frame-input" value="256" min="16" max="1024" step="16" style="width:80px;">
+              <input id="gif-width-input" type="number" class="frame-input" value="800" min="16" max="1024" step="16" style="width:80px;">
               <span>×</span>
-              <input id="gif-height-input" type="number" class="frame-input" value="192" min="16" max="1024" step="16" style="width:80px;">
+              <input id="gif-height-input" type="number" class="frame-input" value="600" min="16" max="1024" step="16" style="width:80px;">
               <span>px</span>
             </div>
             <div style="display:flex; gap:0.5rem; align-items:center; flex-wrap:wrap;">
               <label for="gif-delay-input">Delay</label>
-              <input id="gif-delay-input" type="number" class="frame-input" value="80" min="10" max="500" step="10" style="width:90px;">
-              <span>ms</span>
+              <input id="gif-delay-input" type="number" class="frame-input" value="" placeholder="auto" min="10" max="500" step="10" style="width:90px;">
+              <span>ms (blank = auto)</span>
+            </div>
+            <div style="display:flex; gap:0.5rem; align-items:center; flex-wrap:wrap;">
+              <label for="gif-frame-multiplier-input">Smoothness</label>
+              <input id="gif-frame-multiplier-input" type="number" class="frame-input" value="1" min="1" max="8" step="1" style="width:90px;">
+              <span>× frames</span>
             </div>
             <button id="export-gif-btn" class="modern-btn">Export GIF</button>
             <div style="display: flex; flex-direction: column; gap: 0.5rem;">
