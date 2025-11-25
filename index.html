@@ -165,9 +165,24 @@
         <!-- Export -->
         <div class="control-section" id="export-controls">
           <h3>Export</h3>
-          <div style="display: flex; flex-direction: column; gap: 0.5rem;">
-            <button id="export-glb-btn" class="modern-btn">Export GLB</button>
-            <button id="export-textures-btn" disabled class="modern-btn">Export Textures (PNG)</button>
+          <div style="display: flex; flex-direction: column; gap: 0.75rem;">
+            <div style="display:flex; gap:0.5rem; align-items:center; flex-wrap:wrap;">
+              <label for="gif-width-input">GIF</label>
+              <input id="gif-width-input" type="number" class="frame-input" value="256" min="16" max="1024" step="16" style="width:80px;">
+              <span>×</span>
+              <input id="gif-height-input" type="number" class="frame-input" value="192" min="16" max="1024" step="16" style="width:80px;">
+              <span>px</span>
+            </div>
+            <div style="display:flex; gap:0.5rem; align-items:center; flex-wrap:wrap;">
+              <label for="gif-delay-input">Delay</label>
+              <input id="gif-delay-input" type="number" class="frame-input" value="80" min="10" max="500" step="10" style="width:90px;">
+              <span>ms</span>
+            </div>
+            <button id="export-gif-btn" class="modern-btn">Export GIF</button>
+            <div style="display: flex; flex-direction: column; gap: 0.5rem;">
+              <button id="export-glb-btn" class="modern-btn">Export GLB</button>
+              <button id="export-textures-btn" disabled class="modern-btn">Export Textures (PNG)</button>
+            </div>
           </div>
         </div>
 

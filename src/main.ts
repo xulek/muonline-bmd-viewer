@@ -5,6 +5,8 @@ import { VertexNormalsHelper } from 'three/examples/jsm/helpers/VertexNormalsHel
 import { BMDLoader, convertTgaToDataUrl } from './bmd-loader';
 import { convertOzjToDataUrl } from './ozj-loader';
 import { GLTFExporter } from 'three/examples/jsm/exporters/GLTFExporter.js';
+import GIF from 'gif.js';
+import gifWorkerUrl from 'gif.js/dist/gif.worker.js?url';
 import { isElectron, autoSearchTextures, readFileFromPath, createFileFromElectronData, getFilePathFromFile } from './electron-helper';
 import './style.css';
 
@@ -105,6 +107,8 @@ class App {
     private ambientLight!: THREE.AmbientLight;
     private directionalLight!: THREE.DirectionalLight;
     private mixer: THREE.AnimationMixer | null = null;
+    private isRecordingGif = false;
+    private gridHelper: THREE.GridHelper | null = null;
     
     private currentAction: THREE.AnimationAction | null = null;
 
@@ -114,6 +118,9 @@ class App {
     private loadedGroup: THREE.Group | null = null;
     private requiredTextures: string[] = [];
     private exportBtn!: HTMLButtonElement;        // ← new button
+    private gifWidthInput!: HTMLInputElement;
+    private gifHeightInput!: HTMLInputElement;
+    private gifDelayInput!: HTMLInputElement;
     private textureLoader = new THREE.TextureLoader();
     private lastBmdFilePath: string | null = null;  // For Electron auto-texture search
     private lastAttachmentFilePath: string | null = null;  // For Electron auto-texture search (attachments)
@@ -179,7 +186,11 @@ class App {
         this.scene.background = new THREE.Color(0x1a1a1a);
         this.camera = new THREE.PerspectiveCamera(75, container.clientWidth / container.clientHeight, 0.1, 10000);
         this.camera.position.set(0, 200, 400);
-        this.renderer = new THREE.WebGLRenderer({ antialias: true });
+        this.renderer = new THREE.WebGLRenderer({
+            antialias: true,
+            alpha: true,
+            preserveDrawingBuffer: true, // keep frame buffer for GIF capture
+        });
         this.renderer.setSize(container.clientWidth, container.clientHeight);
         container.appendChild(this.renderer.domElement);
         window.addEventListener('resize', () => {
@@ -200,7 +211,8 @@ class App {
 
         this.scene.add(this.ambientLight);
         this.scene.add(this.directionalLight);
-        this.scene.add(new THREE.GridHelper(500, 10));
+        this.gridHelper = new THREE.GridHelper(500, 10);
+        this.scene.add(this.gridHelper);
         console.groupEnd();
     }
 
@@ -221,9 +233,15 @@ class App {
         
         const speedSlider = document.getElementById('speed-slider') as HTMLInputElement;
         const speedLabel = document.getElementById('speed-label')!;
+        this.gifWidthInput  = document.getElementById('gif-width-input')  as HTMLInputElement;
+        this.gifHeightInput = document.getElementById('gif-height-input') as HTMLInputElement;
+        this.gifDelayInput  = document.getElementById('gif-delay-input')  as HTMLInputElement;
 
-        const exportBtn = document.getElementById('export-glb-btn') as HTMLButtonElement;
-        exportBtn.addEventListener('click', () => this.exportToGLB());
+        const exportGifBtn = document.getElementById('export-gif-btn') as HTMLButtonElement;
+        exportGifBtn.addEventListener('click', () => this.exportGif());
+
+        const exportGlbBtn = document.getElementById('export-glb-btn') as HTMLButtonElement;
+        exportGlbBtn.addEventListener('click', () => this.exportToGLB());
         
         speedSlider.addEventListener('input', (e) => {
             const speed = parseFloat((e.target as HTMLInputElement).value);
@@ -660,6 +678,178 @@ class App {
             },
             options
         );
+    }
+
+    private exportGif() {
+        if (this.isRecordingGif) return;
+        if (!this.loadedGroup) {
+            alert('Load a BMD model first.');
+            return;
+        }
+
+        const status = document.getElementById('status')!;
+        const gifBtn = document.getElementById('export-gif-btn') as HTMLButtonElement | null;
+
+        this.isRecordingGif = true;
+        status.textContent = 'Recording GIF…';
+        if (gifBtn) gifBtn.disabled = true;
+
+        // --- dimensions ---
+        const w = Math.max(16, Math.min(1024, parseInt(this.gifWidthInput?.value ?? '256', 10) || 256));
+        const h = Math.max(16, Math.min(1024, parseInt(this.gifHeightInput?.value ?? '192', 10) || 192));
+
+        // --- animation info ---
+        const speedSliderEl = document.getElementById('speed-slider') as HTMLInputElement | null;
+        const timeScale = parseFloat(speedSliderEl?.value ?? '1') || 1;
+        const hasAnim = !!(this.currentAction && this.mixer);
+
+        let clip: (THREE.AnimationClip & { userData?: { numAnimationKeys?: number } }) | null = null;
+        let numKeys = 0;
+
+        if (hasAnim && this.currentAction) {
+            clip = this.currentAction.getClip() as THREE.AnimationClip & {
+                userData?: { numAnimationKeys?: number }
+            };
+            numKeys = clip.userData?.numAnimationKeys ?? 0;
+        }
+
+        let totalFrames = 1;
+        let delayMs: number | undefined;
+
+        const requestedDelay = parseInt(this.gifDelayInput?.value ?? '', 10);
+        if (!Number.isNaN(requestedDelay) && requestedDelay > 0) {
+            delayMs = requestedDelay;
+        }
+
+        if (hasAnim && clip && numKeys > 0) {
+            totalFrames = numKeys;
+            if (delayMs === undefined) {
+                const realDuration = clip.duration / timeScale;
+                delayMs = (realDuration / totalFrames) * 1000;
+            }
+        }
+
+        if (delayMs === undefined) delayMs = 120;
+        delayMs = Math.min(Math.max(delayMs, 20), 1000);
+
+        // --- canvases ---
+        const tmpCanvas = document.createElement('canvas');
+        tmpCanvas.width = w;
+        tmpCanvas.height = h;
+        const tmpCtx = tmpCanvas.getContext('2d')!;
+
+        const transparentColor = 0x00ff00;
+        const trR = (transparentColor >> 16) & 0xff;
+        const trG = (transparentColor >> 8) & 0xff;
+        const trB = transparentColor & 0xff;
+
+        const gif = new GIF({
+            workers: 2,
+            workerScript: gifWorkerUrl,
+            quality: 10,
+            width: w,
+            height: h,
+            transparent: transparentColor,
+        } as any);
+
+        const oldBg = this.scene.background
+            ? (this.scene.background as THREE.Color).clone()
+            : null;
+        this.scene.background = null;
+
+        const oldGridVisible = this.gridHelper?.visible ?? false;
+        if (this.gridHelper) this.gridHelper.visible = false;
+
+        let oldSpeed = 1;
+        if (hasAnim && this.currentAction) {
+            oldSpeed = (this.currentAction as any)._effectiveTimeScale ?? 1;
+            this.currentAction.setEffectiveTimeScale(1);
+        }
+
+        gif.on('progress', (p: number) => {
+            status.textContent = `Rendering GIF… ${(p * 100).toFixed(0)}%`;
+        });
+
+        gif.on('finished', (blob: Blob) => {
+            if (oldBg) this.scene.background = oldBg;
+            else this.scene.background = null;
+            if (this.gridHelper) this.gridHelper.visible = oldGridVisible;
+
+            if (hasAnim && this.currentAction) {
+                this.currentAction.setEffectiveTimeScale(oldSpeed);
+            }
+
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `model_${w}x${h}.gif`;
+            a.click();
+            URL.revokeObjectURL(url);
+
+            this.isRecordingGif = false;
+            if (gifBtn) gifBtn.disabled = false;
+            status.textContent = `GIF saved (${w}×${h}).`;
+        });
+
+        gif.on('abort', () => {
+            if (oldBg) this.scene.background = oldBg;
+            else this.scene.background = null;
+            if (this.gridHelper) this.gridHelper.visible = oldGridVisible;
+
+            if (hasAnim && this.currentAction) {
+                this.currentAction.setEffectiveTimeScale(oldSpeed);
+            }
+
+            this.isRecordingGif = false;
+            if (gifBtn) gifBtn.disabled = false;
+            status.textContent = 'GIF recording aborted.';
+        });
+
+        let frameIndex = 0;
+        const captureFrame = () => {
+            if (frameIndex >= totalFrames) {
+                gif.render();
+                return;
+            }
+
+            if (hasAnim && clip && numKeys > 0) {
+                const t = totalFrames > 1
+                    ? (frameIndex / totalFrames) * clip.duration
+                    : 0;
+                this.currentAction!.time = t;
+                this.mixer!.update(0);
+            }
+
+            this.renderer.render(this.scene, this.camera);
+            const srcCanvas = this.renderer.domElement;
+
+            tmpCtx.clearRect(0, 0, w, h);
+            tmpCtx.drawImage(srcCanvas, 0, 0, w, h);
+
+            const imgData = tmpCtx.getImageData(0, 0, w, h);
+            const data = imgData.data;
+            const alphaThreshold = 40;
+
+            for (let i = 0; i < data.length; i += 4) {
+                if (data[i + 3] < alphaThreshold) {
+                    data[i] = trR;
+                    data[i + 1] = trG;
+                    data[i + 2] = trB;
+                    data[i + 3] = 255;
+                }
+            }
+            tmpCtx.putImageData(imgData, 0, 0);
+
+            gif.addFrame(tmpCtx, {
+                copy: true,
+                delay: delayMs,
+            });
+
+            frameIndex++;
+            requestAnimationFrame(captureFrame);
+        };
+
+        requestAnimationFrame(captureFrame);
     }
 
     //----------------------------------------------------------
@@ -1311,14 +1501,14 @@ class App {
         requestAnimationFrame(this.animate);
         const delta = this.clock.getDelta();
 
-        if (this.loadedGroup && this.isAutoRotating && !this.userIsInteracting) {
+        if (this.loadedGroup && this.isAutoRotating && !this.userIsInteracting && !this.isRecordingGif) {
             this.loadedGroup.rotation.z += delta * 0.2;
         }
 
         if (this.mixer) {
             if (this.isFrameLocked) {
                 this.applyLockedFrame();
-            } else {
+            } else if (!this.isRecordingGif) {
                 this.mixer.update(delta);
             }
         }
