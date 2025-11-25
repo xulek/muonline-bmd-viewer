@@ -121,6 +121,7 @@ class App {
     private gifWidthInput!: HTMLInputElement;
     private gifHeightInput!: HTMLInputElement;
     private gifDelayInput!: HTMLInputElement;
+    private gifFrameMultiplierInput!: HTMLInputElement;
     private textureLoader = new THREE.TextureLoader();
     private lastBmdFilePath: string | null = null;  // For Electron auto-texture search
     private lastAttachmentFilePath: string | null = null;  // For Electron auto-texture search (attachments)
@@ -236,6 +237,7 @@ class App {
         this.gifWidthInput  = document.getElementById('gif-width-input')  as HTMLInputElement;
         this.gifHeightInput = document.getElementById('gif-height-input') as HTMLInputElement;
         this.gifDelayInput  = document.getElementById('gif-delay-input')  as HTMLInputElement;
+        this.gifFrameMultiplierInput = document.getElementById('gif-frame-multiplier-input') as HTMLInputElement;
 
         const exportGifBtn = document.getElementById('export-gif-btn') as HTMLButtonElement;
         exportGifBtn.addEventListener('click', () => this.exportGif());
@@ -695,8 +697,8 @@ class App {
         if (gifBtn) gifBtn.disabled = true;
 
         // --- dimensions ---
-        const w = Math.max(16, Math.min(1024, parseInt(this.gifWidthInput?.value ?? '256', 10) || 256));
-        const h = Math.max(16, Math.min(1024, parseInt(this.gifHeightInput?.value ?? '192', 10) || 192));
+        const w = Math.max(16, Math.min(1024, parseInt(this.gifWidthInput?.value ?? '800', 10) || 800));
+        const h = Math.max(16, Math.min(1024, parseInt(this.gifHeightInput?.value ?? '600', 10) || 600));
 
         // --- animation info ---
         const speedSliderEl = document.getElementById('speed-slider') as HTMLInputElement | null;
@@ -713,24 +715,10 @@ class App {
             numKeys = clip.userData?.numAnimationKeys ?? 0;
         }
 
-        let totalFrames = 1;
-        let delayMs: number | undefined;
-
         const requestedDelay = parseInt(this.gifDelayInput?.value ?? '', 10);
-        if (!Number.isNaN(requestedDelay) && requestedDelay > 0) {
-            delayMs = requestedDelay;
-        }
+        const userDelay = !Number.isNaN(requestedDelay) && requestedDelay > 0 ? requestedDelay : null;
 
-        if (hasAnim && clip && numKeys > 0) {
-            totalFrames = numKeys;
-            if (delayMs === undefined) {
-                const realDuration = clip.duration / timeScale;
-                delayMs = (realDuration / totalFrames) * 1000;
-            }
-        }
-
-        if (delayMs === undefined) delayMs = 120;
-        delayMs = Math.min(Math.max(delayMs, 20), 1000);
+        const frameMultiplier = Math.max(1, Math.min(8, parseInt(this.gifFrameMultiplierInput?.value ?? '1', 10) || 1));
 
         // --- canvases ---
         const tmpCanvas = document.createElement('canvas');
@@ -760,12 +748,6 @@ class App {
         const oldGridVisible = this.gridHelper?.visible ?? false;
         if (this.gridHelper) this.gridHelper.visible = false;
 
-        let oldSpeed = 1;
-        if (hasAnim && this.currentAction) {
-            oldSpeed = (this.currentAction as any)._effectiveTimeScale ?? 1;
-            this.currentAction.setEffectiveTimeScale(1);
-        }
-
         gif.on('progress', (p: number) => {
             status.textContent = `Rendering GIF… ${(p * 100).toFixed(0)}%`;
         });
@@ -774,10 +756,6 @@ class App {
             if (oldBg) this.scene.background = oldBg;
             else this.scene.background = null;
             if (this.gridHelper) this.gridHelper.visible = oldGridVisible;
-
-            if (hasAnim && this.currentAction) {
-                this.currentAction.setEffectiveTimeScale(oldSpeed);
-            }
 
             const url = URL.createObjectURL(blob);
             const a = document.createElement('a');
@@ -796,14 +774,45 @@ class App {
             else this.scene.background = null;
             if (this.gridHelper) this.gridHelper.visible = oldGridVisible;
 
-            if (hasAnim && this.currentAction) {
-                this.currentAction.setEffectiveTimeScale(oldSpeed);
-            }
-
             this.isRecordingGif = false;
             if (gifBtn) gifBtn.disabled = false;
             status.textContent = 'GIF recording aborted.';
         });
+
+        if (!hasAnim || !clip || numKeys === 0) {
+            this.renderer.render(this.scene, this.camera);
+            tmpCtx.clearRect(0, 0, w, h);
+            tmpCtx.drawImage(this.renderer.domElement, 0, 0, w, h);
+
+            const imgData = tmpCtx.getImageData(0, 0, w, h);
+            const data = imgData.data;
+            const alphaThreshold = 40;
+            for (let i = 0; i < data.length; i += 4) {
+                if (data[i + 3] < alphaThreshold) {
+                    data[i] = trR;
+                    data[i + 1] = trG;
+                    data[i + 2] = trB;
+                    data[i + 3] = 255;
+                }
+            }
+            tmpCtx.putImageData(imgData, 0, 0);
+            gif.addFrame(tmpCtx, {
+                copy: true,
+                delay: Math.min(Math.max(userDelay ?? 120, 10), 1000),
+            });
+            gif.render();
+            return;
+        }
+
+        const totalFrames = Math.max(1, numKeys * frameMultiplier);
+        const effectiveTimeScale =
+            (this.currentAction as any)._effectiveTimeScale ?? timeScale;
+        const autoDelayMs =
+            (clip.duration / Math.max(effectiveTimeScale, 0.0001)) / totalFrames * 1000;
+        const frameDelay = Math.min(
+            Math.max(userDelay ?? Math.round(autoDelayMs), 5),
+            1000,
+        );
 
         let frameIndex = 0;
         const captureFrame = () => {
@@ -812,24 +821,17 @@ class App {
                 return;
             }
 
-            if (hasAnim && clip && numKeys > 0) {
-                const t = totalFrames > 1
-                    ? (frameIndex / totalFrames) * clip.duration
-                    : 0;
-                this.currentAction!.time = t;
-                this.mixer!.update(0);
-            }
+            const t = (frameIndex / totalFrames) * clip!.duration;
+            this.currentAction!.time = t;
+            this.mixer!.update(0);
 
             this.renderer.render(this.scene, this.camera);
-            const srcCanvas = this.renderer.domElement;
-
             tmpCtx.clearRect(0, 0, w, h);
-            tmpCtx.drawImage(srcCanvas, 0, 0, w, h);
+            tmpCtx.drawImage(this.renderer.domElement, 0, 0, w, h);
 
             const imgData = tmpCtx.getImageData(0, 0, w, h);
             const data = imgData.data;
             const alphaThreshold = 40;
-
             for (let i = 0; i < data.length; i += 4) {
                 if (data[i + 3] < alphaThreshold) {
                     data[i] = trR;
@@ -842,7 +844,7 @@ class App {
 
             gif.addFrame(tmpCtx, {
                 copy: true,
-                delay: delayMs,
+                delay: frameDelay,
             });
 
             frameIndex++;
