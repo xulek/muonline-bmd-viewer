@@ -56,10 +56,10 @@ async function ozjToPng(buf: ArrayBuffer, jpgStart: number): Promise<string> {
                   { width: img.width, height: img.height });
     const ctx = cvs.getContext('2d')!;
 
-    if (!isTopDownSort) {
-      ctx.translate(0, img.height);
-      ctx.scale(1, -1);
-    }
+    // if (!isTopDownSort) {
+    //   ctx.translate(0, img.height);
+    //   ctx.scale(1, -1);
+    // }
 
     ctx.drawImage(img, 0, 0);
     img.close(); // Release resources
