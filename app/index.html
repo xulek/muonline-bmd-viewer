@@ -9,8 +9,10 @@
   <!-- Preload fonts for better performance -->
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
-  <script type="module" crossorigin src="/muonline-bmd-viewer/app/assets/index-CkxrIpMA.js"></script>
+  <link
+    href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap"
+    rel="stylesheet">
+  <script type="module" crossorigin src="/muonline-bmd-viewer/app/assets/index-Ce2aj_YC.js"></script>
   <link rel="stylesheet" crossorigin href="/muonline-bmd-viewer/app/assets/index-CKDMHPVF.css">
 </head>
 
@@ -26,7 +28,7 @@
         <!-- File Loading -->
         <div class="control-section">
           <h3>Import Assets</h3>
-          
+
           <div class="drop-zone" id="bmd-drop-zone" title="Load Main Model">
             <p>Drop <strong>.bmd</strong> model here</p>
             <input type="file" id="bmd-file-input" accept=".bmd" style="display: none;" />
@@ -39,10 +41,12 @@
 
           <!-- Texture Loading (Initially Hidden) -->
           <div id="texture-controls" style="display: none; margin-top: 1rem;">
-            <p id="texture-info-text" style="font-size: 0.8rem; color: var(--accent-primary); margin-bottom: 0.5rem;"></p>
+            <p id="texture-info-text" style="font-size: 0.8rem; color: var(--accent-primary); margin-bottom: 0.5rem;">
+            </p>
             <div class="drop-zone" id="texture-drop-zone">
               <p>Drop textures (.jpg, .tga, .ozj)</p>
-              <input type="file" id="texture-file-input" accept=".jpg,.jpeg,.png,.tga,.ozt,.ozj" multiple style="display: none;" />
+              <input type="file" id="texture-file-input" accept=".jpg,.jpeg,.png,.tga,.ozt,.ozj" multiple
+                style="display: none;" />
             </div>
           </div>
         </div>
@@ -50,7 +54,7 @@
         <!-- Animation Settings -->
         <div class="control-section">
           <h3>Animation Settings</h3>
-          
+
           <div class="slider-control">
             <div class="slider-label">
               <span>Playback Speed</span>
@@ -65,13 +69,15 @@
           </div>
 
           <!-- Frame Lock (Hidden by default) -->
-          <div id="frame-lock-controls" style="display:none; margin-top: 1rem; border-top: var(--border-light); padding-top: 1rem;">
+          <div id="frame-lock-controls"
+            style="display:none; margin-top: 1rem; border-top: var(--border-light); padding-top: 1rem;">
             <div class="checkbox-control">
               <label for="lock-frame-checkbox">Lock specific frame</label>
               <input type="checkbox" id="lock-frame-checkbox" class="modern-checkbox">
             </div>
             <div style="display: flex; gap: 0.5rem; align-items: center; margin-top: 0.5rem;">
-              <input type="number" id="lock-frame-input" class="frame-input" value="0" min="0" step="1" style="width: 70px;">
+              <input type="number" id="lock-frame-input" class="frame-input" value="0" min="0" step="1"
+                style="width: 70px;">
               <button id="lock-current-btn" class="lock-btn">Set Current</button>
             </div>
           </div>
@@ -80,7 +86,7 @@
         <!-- Viewport Settings -->
         <div class="control-section">
           <h3>Viewport & Render</h3>
-          
+
           <div class="slider-control">
             <div class="slider-label">
               <span>Model Scale</span>
@@ -121,9 +127,16 @@
             </div>
             <div class="brightness-control">
               <label id="brightness-label" for="brightness-slider">Brightness</label>
-              <input type="range" id="brightness-slider" class="modern-slider" min="0.1" max="2.0" step="0.1" value="1.0">
+              <input type="range" id="brightness-slider" class="modern-slider" min="0.1" max="2.0" step="0.1"
+                value="1.0">
             </div>
           </div>
+        </div>
+
+        <!-- Mesh Blending -->
+        <div class="control-section" id="blending-controls" style="display: none;">
+          <h3>Mesh Blending</h3>
+          <div id="blending-container" style="display: flex; flex-direction: column; gap: 0.75rem;"></div>
         </div>
 
         <!-- Attachment System -->
@@ -136,7 +149,9 @@
           </div>
 
           <div id="attach-controls" style="display: none; margin-top: 1rem;">
-            <label for="attach-bone-select" style="display: block; margin-bottom: 0.5rem; font-size: 0.85rem; color: var(--text-muted);">Select Bone</label>
+            <label for="attach-bone-select"
+              style="display: block; margin-bottom: 0.5rem; font-size: 0.85rem; color: var(--text-muted);">Select
+              Bone</label>
             <select id="attach-bone-select" class="animation-dropdown" style="width: 100%; margin-bottom: 0.5rem;">
               <option value="">-- Select Bone --</option>
             </select>
@@ -149,7 +164,9 @@
               <input type="range" id="attach-bone-slider" class="modern-slider" min="0" max="0" step="1" value="0">
             </div>
 
-            <button id="undo-attach-btn" class="modern-btn" style="width: 100%; margin-top: 1rem; background: transparent; border: 1px solid var(--accent-danger); color: var(--accent-danger);">Remove Attachment</button>
+            <button id="undo-attach-btn" class="modern-btn"
+              style="width: 100%; margin-top: 1rem; background: transparent; border: 1px solid var(--accent-danger); color: var(--accent-danger);">Remove
+              Attachment</button>
           </div>
         </div>
 
@@ -170,19 +187,23 @@
           <div style="display: flex; flex-direction: column; gap: 0.75rem;">
             <div style="display:flex; gap:0.5rem; align-items:center; flex-wrap:wrap;">
               <label for="gif-width-input">GIF</label>
-              <input id="gif-width-input" type="number" class="frame-input" value="800" min="16" max="1024" step="16" style="width:80px;">
+              <input id="gif-width-input" type="number" class="frame-input" value="800" min="16" max="1024" step="16"
+                style="width:80px;">
               <span>×</span>
-              <input id="gif-height-input" type="number" class="frame-input" value="600" min="16" max="1024" step="16" style="width:80px;">
+              <input id="gif-height-input" type="number" class="frame-input" value="600" min="16" max="1024" step="16"
+                style="width:80px;">
               <span>px</span>
             </div>
             <div style="display:flex; gap:0.5rem; align-items:center; flex-wrap:wrap;">
               <label for="gif-delay-input">Delay</label>
-              <input id="gif-delay-input" type="number" class="frame-input" value="" placeholder="auto" min="10" max="500" step="10" style="width:90px;">
+              <input id="gif-delay-input" type="number" class="frame-input" value="" placeholder="auto" min="10"
+                max="500" step="10" style="width:90px;">
               <span>ms (blank = auto)</span>
             </div>
             <div style="display:flex; gap:0.5rem; align-items:center; flex-wrap:wrap;">
               <label for="gif-frame-multiplier-input">Smoothness</label>
-              <input id="gif-frame-multiplier-input" type="number" class="frame-input" value="1" min="1" max="8" step="1" style="width:90px;">
+              <input id="gif-frame-multiplier-input" type="number" class="frame-input" value="1" min="1" max="8"
+                step="1" style="width:90px;">
               <span>× frames</span>
             </div>
             <button id="export-gif-btn" class="modern-btn">Export GIF</button>
@@ -195,7 +216,6 @@
 
         <!-- Hidden Compatibility Elements (Do not remove) -->
         <div style="display: none;">
-          <div id="blending-controls"><div id="blending-container"></div></div>
           <label id="speed-label" for="speed-slider">Speed: 1.00x</label>
           <label id="scale-label" for="scale-slider">Scale: 1.00x</label>
           <div class="auto-rotate-control"></div>
@@ -215,15 +235,15 @@
       <!-- Toggle Button -->
       <button class="sidebar-toggle" id="sidebar-toggle" title="Toggle Controls">
         <svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-          <path d="M4 6H20M4 12H20M4 18H20" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+          <path d="M4 6H20M4 12H20M4 18H20" stroke="currentColor" stroke-width="2" stroke-linecap="round" />
         </svg>
       </button>
 
       <div id="canvas-container"></div>
-      
+
       <!-- Animation Bar -->
       <div id="animations-container"></div>
-      
+
       <div id="status">Ready</div>
     </main>
   </div>
@@ -232,7 +252,7 @@
     // UI Logic (Sidebar toggle & simple interactions)
     const sidebarToggle = document.getElementById('sidebar-toggle');
     const sidebar = document.getElementById('sidebar');
-    
+
     sidebarToggle.addEventListener('click', () => {
       sidebar.classList.toggle('closed');
       // Adjust button icon based on state if needed, or just keep hamburger
@@ -241,14 +261,14 @@
     // Update slider labels for visual feedback
     const speedSlider = document.getElementById('speed-slider');
     const speedValue = document.getElementById('speed-value');
-    
+
     speedSlider.addEventListener('input', (e) => {
       speedValue.textContent = parseFloat(e.target.value).toFixed(2) + 'x';
     });
 
     const scaleSlider = document.getElementById('scale-slider');
     const scaleValue = document.getElementById('scale-value');
-    
+
     scaleSlider.addEventListener('input', (e) => {
       scaleValue.textContent = parseFloat(e.target.value).toFixed(2) + 'x';
     });
