@@ -1078,6 +1078,9 @@ class App {
             document.getElementById('animations-container')!.innerHTML = '';
         }
 
+        // Clear mesh references for blending UI
+        this.meshRefs = [];
+
         // Clear main skeleton reference
         this.mainSkeleton = null;
 
