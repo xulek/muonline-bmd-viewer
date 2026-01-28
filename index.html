@@ -20,8 +20,15 @@
     <aside class="sidebar" id="sidebar">
       <div class="sidebar-content">
         <div class="sidebar-header">
-          <h2 class="sidebar-title">🛠️ BMD Controls</h2>
+          <h2 class="sidebar-title">🛠️ Controls</h2>
         </div>
+
+        <div class="sidebar-tabs" id="sidebar-tabs">
+          <button class="tab-btn active" data-view="bmd">Model Viewer</button>
+          <button class="tab-btn" data-view="character">Test Animation Scene</button>
+        </div>
+
+        <div id="sidebar-bmd" class="sidebar-view">
 
         <!-- File Loading -->
         <div class="control-section">
@@ -221,11 +228,212 @@
           <div class="scale-control"></div>
         </div>
 
+        </div>
+
+        <div id="sidebar-character" class="sidebar-view hidden">
+          <div class="control-section">
+            <h3>Game Data</h3>
+            <div class="drop-zone" id="data-drop-zone" title="Load Data folder">
+              <p>Drop <strong>Data</strong> folder here</p>
+              <input type="file" id="data-folder-input" webkitdirectory directory multiple style="display: none;" />
+            </div>
+            <p id="data-folder-status" style="font-size: 0.8rem; color: var(--text-muted); margin: 0;">
+              No Data loaded.
+            </p>
+          </div>
+
+          <div class="control-section">
+            <h3>Character</h3>
+            <label for="character-class-select"
+              style="display: block; margin-bottom: 0.5rem; font-size: 0.85rem; color: var(--text-muted);">
+              Class
+            </label>
+            <select id="character-class-select" class="animation-dropdown" style="width: 100%; margin-bottom: 0.75rem;">
+              <option value="">Loading...</option>
+            </select>
+
+            <div class="checkbox-control">
+              <label for="character-auto-rotate">Auto-rotate Character</label>
+              <input type="checkbox" id="character-auto-rotate" class="modern-checkbox">
+            </div>
+          </div>
+
+          <div class="control-section">
+            <h3>Equipment</h3>
+            <label for="character-helm-select"
+              style="display: block; margin-bottom: 0.35rem; font-size: 0.8rem; color: var(--text-muted);">
+              Helm
+            </label>
+            <select id="character-helm-select" class="animation-dropdown" style="width: 100%; margin-bottom: 0.6rem;">
+              <option value="">None</option>
+            </select>
+
+            <label for="character-armor-select"
+              style="display: block; margin-bottom: 0.35rem; font-size: 0.8rem; color: var(--text-muted);">
+              Armor
+            </label>
+            <select id="character-armor-select" class="animation-dropdown" style="width: 100%; margin-bottom: 0.6rem;">
+              <option value="">None</option>
+            </select>
+
+            <label for="character-pants-select"
+              style="display: block; margin-bottom: 0.35rem; font-size: 0.8rem; color: var(--text-muted);">
+              Pants
+            </label>
+            <select id="character-pants-select" class="animation-dropdown" style="width: 100%; margin-bottom: 0.6rem;">
+              <option value="">None</option>
+            </select>
+
+            <label for="character-gloves-select"
+              style="display: block; margin-bottom: 0.35rem; font-size: 0.8rem; color: var(--text-muted);">
+              Gloves
+            </label>
+            <select id="character-gloves-select" class="animation-dropdown" style="width: 100%; margin-bottom: 0.6rem;">
+              <option value="">None</option>
+            </select>
+
+            <label for="character-boots-select"
+              style="display: block; margin-bottom: 0.35rem; font-size: 0.8rem; color: var(--text-muted);">
+              Boots
+            </label>
+            <select id="character-boots-select" class="animation-dropdown" style="width: 100%; margin-bottom: 0.6rem;">
+              <option value="">None</option>
+            </select>
+
+            <label for="character-left-weapon-select"
+              style="display: block; margin-bottom: 0.35rem; font-size: 0.8rem; color: var(--text-muted);">
+              Left Hand
+            </label>
+            <select id="character-left-weapon-select" class="animation-dropdown" style="width: 100%; margin-bottom: 0.6rem;">
+              <option value="">None</option>
+            </select>
+
+            <label for="character-right-weapon-select"
+              style="display: block; margin-bottom: 0.35rem; font-size: 0.8rem; color: var(--text-muted);">
+              Right Hand
+            </label>
+            <select id="character-right-weapon-select" class="animation-dropdown" style="width: 100%; margin-bottom: 0.6rem;">
+              <option value="">None</option>
+            </select>
+
+            <label for="character-wing-select"
+              style="display: block; margin-bottom: 0.35rem; font-size: 0.8rem; color: var(--text-muted);">
+              Wings
+            </label>
+            <select id="character-wing-select" class="animation-dropdown" style="width: 100%;">
+              <option value="">None</option>
+            </select>
+          </div>
+
+          <div class="control-section">
+            <h3>Animation Settings</h3>
+            <div class="slider-control">
+              <div class="slider-label">
+                <span>Playback Speed</span>
+                <span class="slider-value" id="character-speed-value">0.20x</span>
+              </div>
+              <input type="range" id="character-speed-slider" class="modern-slider" min="0.1" max="2.0" step="0.1"
+                value="0.2">
+            </div>
+
+            <label for="character-animation-select"
+              style="display: block; margin-bottom: 0.5rem; font-size: 0.8rem; color: var(--text-muted);">
+              Animation
+            </label>
+            <select id="character-animation-select" class="animation-dropdown" style="width: 100%;">
+              <option value="">No animations</option>
+            </select>
+          </div>
+
+          <div class="control-section">
+            <h3>Viewport & Render</h3>
+
+            <div class="slider-control">
+              <div class="slider-label">
+                <span>Model Scale</span>
+                <span class="slider-value" id="character-scale-value">1.00x</span>
+              </div>
+              <input type="range" id="character-scale-slider" class="modern-slider" min="0.1" max="5.0" step="0.1"
+                value="1.0">
+            </div>
+
+            <div class="checkbox-control">
+              <label for="character-show-skeleton">Show Skeleton</label>
+              <input type="checkbox" id="character-show-skeleton" class="modern-checkbox">
+            </div>
+
+            <div class="checkbox-control">
+              <label for="character-wireframe">Wireframe Mode</label>
+              <input type="checkbox" id="character-wireframe" class="modern-checkbox">
+            </div>
+
+            <div class="checkbox-control">
+              <label for="character-show-bbox">Bounding Box</label>
+              <input type="checkbox" id="character-show-bbox" class="modern-checkbox">
+            </div>
+
+            <div class="checkbox-control">
+              <label for="character-show-axes">Show Axes</label>
+              <input type="checkbox" id="character-show-axes" class="modern-checkbox">
+            </div>
+
+            <div class="checkbox-control">
+              <label for="character-show-normals">Show Normals</label>
+              <input type="checkbox" id="character-show-normals" class="modern-checkbox">
+            </div>
+
+            <div style="margin-top: 1rem; padding-top: 1rem; border-top: var(--border-light);">
+              <div class="background-control">
+              <label for="character-bg-color">Background</label>
+              <input type="color" id="character-bg-color" value="#2b2f36">
+            </div>
+            <div class="brightness-control">
+              <label id="character-brightness-label" for="character-brightness-slider">Brightness</label>
+              <input type="range" id="character-brightness-slider" class="modern-slider" min="0.1" max="2.0"
+                  step="0.1" value="2.0">
+            </div>
+          </div>
+
+          <div class="control-section" id="character-blending-controls" style="display: none;">
+            <h3>Mesh Blending</h3>
+            <div id="character-blending-container" style="display: flex; flex-direction: column; gap: 0.75rem;"></div>
+          </div>
+
+          <div class="control-section" id="character-export-controls">
+            <h3>Export</h3>
+            <div style="display: flex; flex-direction: column; gap: 0.75rem;">
+              <div style="display:flex; gap:0.5rem; align-items:center; flex-wrap:wrap;">
+                <label for="character-gif-width-input">GIF</label>
+                <input id="character-gif-width-input" type="number" class="frame-input" value="800" min="16"
+                  max="1024" step="16" style="width:80px;">
+                <span>×</span>
+                <input id="character-gif-height-input" type="number" class="frame-input" value="600" min="16"
+                  max="1024" step="16" style="width:80px;">
+                <span>px</span>
+              </div>
+              <div style="display:flex; gap:0.5rem; align-items:center; flex-wrap:wrap;">
+                <label for="character-gif-delay-input">Delay</label>
+                <input id="character-gif-delay-input" type="number" class="frame-input" value="" placeholder="auto"
+                  min="10" max="500" step="10" style="width:90px;">
+                <span>ms (blank = auto)</span>
+              </div>
+              <div style="display:flex; gap:0.5rem; align-items:center; flex-wrap:wrap;">
+                <label for="character-gif-frame-multiplier-input">Smoothness</label>
+                <input id="character-gif-frame-multiplier-input" type="number" class="frame-input" value="1" min="1"
+                  max="8" step="1" style="width:90px;">
+                <span>× frames</span>
+              </div>
+              <button id="character-export-gif-btn" class="modern-btn">Export GIF</button>
+            </div>
+          </div>
+          </div>
+        </div>
+
       </div>
     </aside>
 
     <!-- Main Viewport -->
-    <main class="main-content" id="main-content">
+    <main class="main-content view" id="view-bmd">
       <div class="header">
         <h1>MU BMD Viewer</h1>
       </div>
@@ -244,16 +452,62 @@
 
       <div id="status">Ready</div>
     </main>
+
+    <main class="main-content view hidden" id="view-character">
+      <div class="header">
+        <h1>Character Test Scene</h1>
+      </div>
+
+      <button class="sidebar-toggle" id="character-sidebar-toggle" title="Toggle Controls">
+        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <path d="M4 6H20M4 12H20M4 18H20" stroke="currentColor" stroke-width="2" stroke-linecap="round" />
+        </svg>
+      </button>
+
+      <div id="character-canvas-container"></div>
+
+      <div id="character-status">Ready</div>
+    </main>
   </div>
 
   <script>
     // UI Logic (Sidebar toggle & simple interactions)
-    const sidebarToggle = document.getElementById('sidebar-toggle');
     const sidebar = document.getElementById('sidebar');
+    const sidebarToggles = [
+      document.getElementById('sidebar-toggle'),
+      document.getElementById('character-sidebar-toggle'),
+    ].filter(Boolean);
 
-    sidebarToggle.addEventListener('click', () => {
-      sidebar.classList.toggle('closed');
-      // Adjust button icon based on state if needed, or just keep hamburger
+    sidebarToggles.forEach(btn => {
+      btn.addEventListener('click', () => {
+        sidebar.classList.toggle('closed');
+      });
+    });
+
+    // Tabs: switch between views
+    const tabs = document.querySelectorAll('.tab-btn');
+    const sidebarViews = {
+      bmd: document.getElementById('sidebar-bmd'),
+      character: document.getElementById('sidebar-character'),
+    };
+    const mainViews = {
+      bmd: document.getElementById('view-bmd'),
+      character: document.getElementById('view-character'),
+    };
+
+    tabs.forEach(btn => {
+      btn.addEventListener('click', () => {
+        tabs.forEach(b => b.classList.remove('active'));
+        btn.classList.add('active');
+
+        const target = btn.dataset.view || 'bmd';
+        Object.entries(sidebarViews).forEach(([key, el]) => {
+          if (el) el.classList.toggle('hidden', key !== target);
+        });
+        Object.entries(mainViews).forEach(([key, el]) => {
+          if (el) el.classList.toggle('hidden', key !== target);
+        });
+      });
     });
 
     // Update slider labels for visual feedback

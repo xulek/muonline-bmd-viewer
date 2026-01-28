@@ -102,6 +102,36 @@ body {
   border-bottom: var(--border-light);
 }
 
+.sidebar-tabs {
+  display: flex;
+  gap: 0.5rem;
+  margin-bottom: 1.25rem;
+}
+
+.tab-btn {
+  flex: 1;
+  padding: 0.45rem 0.6rem;
+  border-radius: var(--radius-sm);
+  border: 1px solid transparent;
+  background: var(--bg-input);
+  color: var(--text-muted);
+  font-size: 0.8rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.tab-btn:hover {
+  color: var(--text-main);
+  border-color: var(--accent-primary);
+}
+
+.tab-btn.active {
+  background: var(--accent-primary);
+  color: #fff;
+  border-color: transparent;
+}
+
 .sidebar-title {
   font-size: 1.1rem;
   font-weight: 600;
@@ -373,7 +403,8 @@ input[type="color"] {
 }
 
 /* --- CANVAS CONTAINER --- */
-#canvas-container {
+#canvas-container,
+#character-canvas-container {
   width: 100%;
   height: 100%;
   position: relative;
@@ -385,7 +416,8 @@ input[type="color"] {
   background-size: 50px 50px;
 }
 
-#status {
+#status,
+#character-status {
   position: absolute;
   bottom: 20px;
   right: 20px;
@@ -479,7 +511,8 @@ input[type="color"] {
   color: var(--text-muted);
 }
 
-#brightness-slider {
+#brightness-slider,
+#character-brightness-slider {
   width: 60%;
 }
 

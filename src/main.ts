@@ -8,6 +8,7 @@ import { GLTFExporter } from 'three/examples/jsm/exporters/GLTFExporter.js';
 import GIF from 'gif.js';
 import gifWorkerUrl from 'gif.js/dist/gif.worker.js?url';
 import { isElectron, autoSearchTextures, readFileFromPath, createFileFromElectronData, getFilePathFromFile } from './electron-helper';
+import { CharacterTestScene } from './character-test-scene';
 import './style.css';
 
 class SkinnedVertexNormalsHelper extends THREE.LineSegments {
@@ -129,6 +130,7 @@ class App {
     // ### NEW ### For rotation
     private isAutoRotating = true;
     private userIsInteracting = false;
+    private isActive = true;
 
     // ### NEW ### Diagnostic elements
     private diagActionsCountEl!: HTMLElement;      // number of clips / actions
@@ -174,6 +176,10 @@ class App {
         this.initThree();
         this.initUI();
         this.animate(performance.now());
+    }
+
+    public setActive(active: boolean) {
+        this.isActive = active;
     }
 
     //----------------------------------------------------------
@@ -1505,6 +1511,9 @@ class App {
     private animate = (time: DOMHighResTimeStamp) => {
         requestAnimationFrame(this.animate);
         const delta = this.clock.getDelta();
+        if (!this.isActive) {
+            return;
+        }
 
         if (this.loadedGroup && this.isAutoRotating && !this.userIsInteracting && !this.isRecordingGif) {
             this.loadedGroup.rotation.z += delta * 0.2;
@@ -1967,4 +1976,30 @@ class App {
     }
 }
 
-new App();
+const app = new App();
+let characterScene: CharacterTestScene | null = null;
+
+if (isElectron()) {
+    characterScene = new CharacterTestScene();
+    characterScene.setActive(false);
+} else {
+    const characterTab = document.querySelector<HTMLButtonElement>('.tab-btn[data-view="character"]');
+    if (characterTab) characterTab.style.display = 'none';
+
+    const sidebarCharacter = document.getElementById('sidebar-character');
+    if (sidebarCharacter) sidebarCharacter.classList.add('hidden');
+
+    const viewCharacter = document.getElementById('view-character');
+    if (viewCharacter) viewCharacter.classList.add('hidden');
+}
+
+const tabButtons = document.querySelectorAll<HTMLButtonElement>('.tab-btn');
+tabButtons.forEach(btn => {
+    btn.addEventListener('click', () => {
+        const target = btn.dataset.view || 'bmd';
+        app.setActive(target === 'bmd');
+        if (characterScene) {
+            characterScene.setActive(target === 'character');
+        }
+    });
+});

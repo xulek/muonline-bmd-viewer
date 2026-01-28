@@ -12,6 +12,9 @@ contextBridge.exposeInMainWorld('electronAPI', {
   // Open multiple files dialog
   openFiles: (options) => ipcRenderer.invoke('dialog:openFiles', options),
 
+  // Open directory dialog
+  openDirectory: () => ipcRenderer.invoke('dialog:openDirectory'),
+
   // Read file from disk
   readFile: (filePath) => ipcRenderer.invoke('fs:readFile', filePath),
 

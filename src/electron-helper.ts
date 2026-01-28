@@ -6,7 +6,8 @@ interface ElectronAPI {
   isElectron: boolean;
   openFile: (options?: { filters?: Array<{ name: string; extensions: string[] }> }) => Promise<string | null>;
   openFiles: (options?: { filters?: Array<{ name: string; extensions: string[] }> }) => Promise<string[]>;
-  readFile: (filePath: string) => Promise<{ name: string; data: ArrayBuffer }>;
+  openDirectory: () => Promise<string | null>;
+  readFile: (filePath: string) => Promise<{ name: string; data: ArrayBuffer } | null>;
   searchTextures: (startPath: string, requiredTextures: string[]) => Promise<Record<string, string[]>>;
   getFilePath: (file: File) => string | null;
 }
@@ -59,6 +60,17 @@ export async function openFilesDialog(filters?: Array<{ name: string; extensions
 }
 
 /**
+ * Open directory dialog (Electron only)
+ */
+export async function openDirectoryDialog(): Promise<string | null> {
+  if (!isElectron() || !window.electronAPI) {
+    console.warn('openDirectoryDialog is only available in Electron');
+    return null;
+  }
+  return window.electronAPI.openDirectory();
+}
+
+/**
  * Read file from path (Electron only)
  */
 export async function readFileFromPath(filePath: string): Promise<{ name: string; data: ArrayBuffer } | null> {
@@ -67,6 +79,20 @@ export async function readFileFromPath(filePath: string): Promise<{ name: string
     return null;
   }
   return window.electronAPI.readFile(filePath);
+}
+
+/**
+ * Search for textures in a directory tree (Electron only)
+ */
+export async function searchTextures(
+  startPath: string,
+  requiredTextures: string[],
+): Promise<Record<string, string[]>> {
+  if (!isElectron() || !window.electronAPI) {
+    console.warn('searchTextures is only available in Electron');
+    return {};
+  }
+  return window.electronAPI.searchTextures(startPath, requiredTextures);
 }
 
 /**
