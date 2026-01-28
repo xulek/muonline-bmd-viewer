@@ -220,6 +220,9 @@ export class CharacterTestScene {
   private characterScale = 1.0;
   private itemLevel = 0;
   private readonly itemGlowColor = new THREE.Color(1.0, 1.0, 1.0);
+  private itemIsExcellent = false;
+  private itemIsAncient = false;
+  private itemExcellentIntensity = 1.0;
   private itemShaderMaterials = new Set<THREE.ShaderMaterial>();
   private skeletonHelper: THREE.SkeletonHelper | null = null;
   private boundingBoxHelper: THREE.BoxHelper | null = null;
@@ -256,6 +259,10 @@ export class CharacterTestScene {
   private scaleValueEl!: HTMLElement;
   private itemLevelSlider!: HTMLInputElement;
   private itemLevelValueEl!: HTMLElement;
+  private itemExcellentCheckbox!: HTMLInputElement;
+  private itemAncientCheckbox!: HTMLInputElement;
+  private itemExcellentIntensitySlider!: HTMLInputElement;
+  private itemExcellentIntensityValueEl!: HTMLElement;
   private exportGifBtn!: HTMLButtonElement;
   private gifWidthInput!: HTMLInputElement;
   private gifHeightInput!: HTMLInputElement;
@@ -350,6 +357,10 @@ export class CharacterTestScene {
     this.scaleValueEl = document.getElementById('character-scale-value') as HTMLElement;
     this.itemLevelSlider = document.getElementById('character-item-level') as HTMLInputElement;
     this.itemLevelValueEl = document.getElementById('character-item-level-value') as HTMLElement;
+    this.itemExcellentCheckbox = document.getElementById('character-item-excellent') as HTMLInputElement;
+    this.itemAncientCheckbox = document.getElementById('character-item-ancient') as HTMLInputElement;
+    this.itemExcellentIntensitySlider = document.getElementById('character-excellent-intensity') as HTMLInputElement;
+    this.itemExcellentIntensityValueEl = document.getElementById('character-excellent-intensity-value') as HTMLElement;
     this.exportGifBtn = document.getElementById('character-export-gif-btn') as HTMLButtonElement;
     this.gifWidthInput = document.getElementById('character-gif-width-input') as HTMLInputElement;
     this.gifHeightInput = document.getElementById('character-gif-height-input') as HTMLInputElement;
@@ -396,6 +407,26 @@ export class CharacterTestScene {
       const level = parseInt((e.target as HTMLInputElement).value, 10) || 0;
       this.itemLevel = Math.min(Math.max(level, 0), 15);
       this.itemLevelValueEl.textContent = `+${this.itemLevel}`;
+      this.updateItemShaderParams();
+    });
+
+    this.itemExcellentCheckbox.checked = false;
+    this.itemAncientCheckbox.checked = false;
+    this.itemExcellentCheckbox.addEventListener('change', () => {
+      this.itemIsExcellent = this.itemExcellentCheckbox.checked;
+      this.updateItemShaderParams();
+    });
+    this.itemAncientCheckbox.addEventListener('change', () => {
+      this.itemIsAncient = this.itemAncientCheckbox.checked;
+      this.updateItemShaderParams();
+    });
+
+    this.itemExcellentIntensitySlider.value = this.itemExcellentIntensity.toString();
+    this.itemExcellentIntensityValueEl.textContent = `${this.itemExcellentIntensity.toFixed(2)}x`;
+    this.itemExcellentIntensitySlider.addEventListener('input', e => {
+      const value = parseFloat((e.target as HTMLInputElement).value);
+      this.itemExcellentIntensity = Math.min(Math.max(value, 0), 2.5);
+      this.itemExcellentIntensityValueEl.textContent = `${this.itemExcellentIntensity.toFixed(2)}x`;
       this.updateItemShaderParams();
     });
 
@@ -957,6 +988,9 @@ export class CharacterTestScene {
 
     this.itemShaderMaterials.forEach(material => {
       material.uniforms.uItemLevel.value = this.itemLevel;
+      material.uniforms.uIsExcellent.value = this.itemIsExcellent ? 1.0 : 0.0;
+      material.uniforms.uIsAncient.value = this.itemIsAncient ? 1.0 : 0.0;
+      material.uniforms.uExcellentIntensity.value = this.itemExcellentIntensity;
       material.uniforms.uLightDirection.value.copy(lightDirection);
       material.uniforms.uAmbientColor.value.copy(ambientColor);
       material.uniforms.uGlowColor.value.copy(glowColor);
@@ -998,6 +1032,9 @@ export class CharacterTestScene {
       uniform sampler2D uMap;
       uniform float uTime;
       uniform float uItemLevel;
+      uniform float uIsExcellent;
+      uniform float uIsAncient;
+      uniform float uExcellentIntensity;
       uniform vec3 uGlowColor;
       uniform vec3 uLightDirection;
       uniform vec3 uAmbientColor;
@@ -1016,6 +1053,8 @@ export class CharacterTestScene {
         vec3 color = base.rgb * (uAmbientColor + vec3(ndotl));
 
         float itemLevel = uItemLevel;
+        float excellentEnabled = step(0.5, uIsExcellent);
+        float ancientEnabled = step(0.5, uIsAncient);
         float brightness = 1.0;
         float ghostIntensity = 0.0;
 
@@ -1060,6 +1099,59 @@ export class CharacterTestScene {
         float glowEffect = (1.0 + sin(uTime * 1.0)) * 0.03 + 0.2;
         color += base.rgb * glowEffect * extraGlow * 0.2;
 
+        // Ancient effect: blue sweep with long pause
+        if (ancientEnabled > 0.5) {
+          float cycle = fract(uTime * 0.08); // slow cycle
+          float sweepDuration = 0.18;
+          float sweepPhase = clamp(cycle / sweepDuration, 0.0, 1.0);
+          float sweepActive = step(cycle, sweepDuration);
+          float beamPos = sweepPhase;
+          float dist = abs(vUv.x - beamPos);
+          float beam = smoothstep(0.22, 0.0, dist);
+          float wave = sin(uTime * 3.0 + vUv.y * 6.0) * 0.3 + 0.7;
+          float intensity = beam * wave * sweepActive;
+          vec3 ancientColor = vec3(0.25, 0.45, 1.0);
+          color += ancientColor * intensity * 0.55;
+          color += ghost1 * ancientColor * intensity * 0.35;
+          color += ghost2 * ancientColor * intensity * 0.25;
+          color += color * ancientColor * (0.05 + 0.04 * step(9.0, itemLevel));
+        }
+
+        // Excellent effect: full rainbow across the entire item
+        if (excellentEnabled > 0.5) {
+          float exScale = max(uExcellentIntensity, 0.0);
+          float hue = fract(uTime * 0.08 + vUv.x * 0.35 + vUv.y * 0.25);
+          float hue2 = fract(hue + 0.33);
+
+          float c = 1.0;
+          float x1 = c * (1.0 - abs(mod(hue * 6.0, 2.0) - 1.0));
+          vec3 rgb1 = (hue < 1.0/6.0) ? vec3(c, x1, 0.0)
+                     : (hue < 2.0/6.0) ? vec3(x1, c, 0.0)
+                     : (hue < 3.0/6.0) ? vec3(0.0, c, x1)
+                     : (hue < 4.0/6.0) ? vec3(0.0, x1, c)
+                     : (hue < 5.0/6.0) ? vec3(x1, 0.0, c)
+                     : vec3(c, 0.0, x1);
+
+          float x2 = c * (1.0 - abs(mod(hue2 * 6.0, 2.0) - 1.0));
+          vec3 rgb2 = (hue2 < 1.0/6.0) ? vec3(c, x2, 0.0)
+                     : (hue2 < 2.0/6.0) ? vec3(x2, c, 0.0)
+                     : (hue2 < 3.0/6.0) ? vec3(0.0, c, x2)
+                     : (hue2 < 4.0/6.0) ? vec3(0.0, x2, c)
+                     : (hue2 < 5.0/6.0) ? vec3(x2, 0.0, c)
+                     : vec3(c, 0.0, x2);
+
+          float pulse = sin(uTime * 1.1) * 0.5 + 0.5;
+          float fresnel = pow(1.0 - max(dot(normalize(vViewDir), normal), 0.0), 2.0);
+
+          vec3 rainbow = mix(rgb1, rgb2, 0.5 + 0.5 * sin(uTime * 0.6));
+          vec3 rainbowTint = mix(vec3(1.0), rainbow, 0.65 * exScale);
+          color *= rainbowTint;
+
+          color += ghost1 * rgb1 * (0.26 + 0.22 * pulse) * exScale;
+          color += ghost2 * rgb2 * (0.22 + 0.18 * pulse) * exScale;
+          color += rgb2 * fresnel * 0.14 * exScale;
+        }
+
         gl_FragColor = vec4(color, base.a);
         #include <tonemapping_fragment>
         #include <colorspace_fragment>
@@ -1071,6 +1163,9 @@ export class CharacterTestScene {
         uMap: { value: texture },
         uTime: { value: 0 },
         uItemLevel: { value: this.itemLevel },
+        uIsExcellent: { value: this.itemIsExcellent ? 1.0 : 0.0 },
+        uIsAncient: { value: this.itemIsAncient ? 1.0 : 0.0 },
+        uExcellentIntensity: { value: this.itemExcellentIntensity },
         uGlowColor: { value: this.itemGlowColor.clone() },
         uLightDirection: { value: new THREE.Vector3(0.707, -0.707, 0).normalize() },
         uAmbientColor: { value: new THREE.Color(0.3, 0.3, 0.3) },
