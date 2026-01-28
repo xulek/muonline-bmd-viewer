@@ -218,6 +218,9 @@ export class CharacterTestScene {
   private animationSpeed = 0.2;
   private selectedAnimationIndex: number | null = null;
   private characterScale = 1.0;
+  private itemLevel = 0;
+  private readonly itemGlowColor = new THREE.Color(1.0, 1.0, 1.0);
+  private itemShaderMaterials = new Set<THREE.ShaderMaterial>();
   private skeletonHelper: THREE.SkeletonHelper | null = null;
   private boundingBoxHelper: THREE.BoxHelper | null = null;
   private axesHelper: THREE.AxesHelper | null = null;
@@ -251,6 +254,8 @@ export class CharacterTestScene {
   private speedValueEl!: HTMLElement;
   private scaleSlider!: HTMLInputElement;
   private scaleValueEl!: HTMLElement;
+  private itemLevelSlider!: HTMLInputElement;
+  private itemLevelValueEl!: HTMLElement;
   private exportGifBtn!: HTMLButtonElement;
   private gifWidthInput!: HTMLInputElement;
   private gifHeightInput!: HTMLInputElement;
@@ -343,6 +348,8 @@ export class CharacterTestScene {
     this.speedValueEl = document.getElementById('character-speed-value') as HTMLElement;
     this.scaleSlider = document.getElementById('character-scale-slider') as HTMLInputElement;
     this.scaleValueEl = document.getElementById('character-scale-value') as HTMLElement;
+    this.itemLevelSlider = document.getElementById('character-item-level') as HTMLInputElement;
+    this.itemLevelValueEl = document.getElementById('character-item-level-value') as HTMLElement;
     this.exportGifBtn = document.getElementById('character-export-gif-btn') as HTMLButtonElement;
     this.gifWidthInput = document.getElementById('character-gif-width-input') as HTMLInputElement;
     this.gifHeightInput = document.getElementById('character-gif-height-input') as HTMLInputElement;
@@ -381,6 +388,15 @@ export class CharacterTestScene {
       const scale = parseFloat((e.target as HTMLInputElement).value);
       this.scaleValueEl.textContent = `${scale.toFixed(2)}x`;
       this.setCharacterScale(scale);
+    });
+
+    this.itemLevelSlider.value = this.itemLevel.toString();
+    this.itemLevelValueEl.textContent = `+${this.itemLevel}`;
+    this.itemLevelSlider.addEventListener('input', e => {
+      const level = parseInt((e.target as HTMLInputElement).value, 10) || 0;
+      this.itemLevel = Math.min(Math.max(level, 0), 15);
+      this.itemLevelValueEl.textContent = `+${this.itemLevel}`;
+      this.updateItemShaderParams();
     });
 
     this.exportGifBtn.addEventListener('click', () => this.exportGif());
@@ -660,7 +676,7 @@ export class CharacterTestScene {
 
     this.characterRoot = baseGroup.group;
     this.characterRoot.name = 'character_root';
-    this.tagMeshes(this.characterRoot, `Base ArmorClass${classToken}`);
+    this.tagMeshes(this.characterRoot, `Base ArmorClass${classToken}`, 'base');
     this.characterRoot.scale.set(this.characterScale, this.characterScale, this.characterScale);
     if (!shouldReframe) {
       this.characterRoot.position.copy(previousOffset);
@@ -713,7 +729,7 @@ export class CharacterTestScene {
         continue;
       }
       if (token !== this.buildToken) return;
-      this.tagMeshes(part.group, partEntry.label);
+      this.tagMeshes(part.group, partEntry.label, 'base');
       await this.applyTexturesForGroup(part.group);
       await this.attachBodyPart(part.group);
       if (token !== this.buildToken) return;
@@ -744,7 +760,7 @@ export class CharacterTestScene {
           continue;
         }
         if (token !== this.buildToken) return;
-        this.tagMeshes(part.group, itemLabel);
+        this.tagMeshes(part.group, itemLabel, 'equipment');
         await this.applyTexturesForGroup(part.group);
         await this.attachBodyPart(part.group);
       } else {
@@ -754,7 +770,7 @@ export class CharacterTestScene {
           continue;
         }
         if (token !== this.buildToken) return;
-        this.tagMeshes(part.group, itemLabel);
+        this.tagMeshes(part.group, itemLabel, 'equipment');
         this.attachToBone(part.group, entry.bone ?? 0);
         await this.applyTexturesForGroup(part.group);
       }
@@ -815,10 +831,11 @@ export class CharacterTestScene {
     return `${name} (G${item.group} / ${item.id})`;
   }
 
-  private tagMeshes(group: THREE.Group, label: string) {
+  private tagMeshes(group: THREE.Group, label: string, kind: 'base' | 'equipment') {
     group.traverse(obj => {
       if ((obj as THREE.Mesh).isMesh) {
         (obj as THREE.Mesh).userData.itemLabel = label;
+        (obj as THREE.Mesh).userData.itemKind = kind;
       }
     });
   }
@@ -906,11 +923,171 @@ export class CharacterTestScene {
       const tex = textures.get(path);
       if (!tex) return;
 
+      if ((mesh.userData?.itemKind as string) === 'equipment') {
+        this.applyItemShader(mesh, tex);
+        return;
+      }
+
       const mat = mesh.material as THREE.MeshPhongMaterial;
-      mat.map = tex;
-      mat.color.set(0xffffff);
-      mat.needsUpdate = true;
+      if (mat && 'map' in mat) {
+        mat.map = tex;
+        mat.color.set(0xffffff);
+        mat.needsUpdate = true;
+      }
     });
+  }
+
+  private applyItemShader(mesh: THREE.Mesh, texture: THREE.Texture) {
+    const oldMaterial = mesh.material as THREE.Material | THREE.Material[] | undefined;
+    if (Array.isArray(oldMaterial)) {
+      oldMaterial.forEach(mat => mat.dispose());
+    } else if (oldMaterial) {
+      oldMaterial.dispose();
+    }
+
+    const material = this.createItemShaderMaterial(texture);
+    mesh.material = material;
+    this.itemShaderMaterials.add(material);
+  }
+
+  private updateItemShaderParams() {
+    const lightDirection = new THREE.Vector3(0.707, -0.707, 0).normalize();
+    const ambientColor = new THREE.Color(0.3, 0.3, 0.3);
+    const glowColor = this.itemGlowColor;
+
+    this.itemShaderMaterials.forEach(material => {
+      material.uniforms.uItemLevel.value = this.itemLevel;
+      material.uniforms.uLightDirection.value.copy(lightDirection);
+      material.uniforms.uAmbientColor.value.copy(ambientColor);
+      material.uniforms.uGlowColor.value.copy(glowColor);
+    });
+  }
+
+  private createItemShaderMaterial(texture: THREE.Texture): THREE.ShaderMaterial {
+    const vertexShader = `
+      #include <common>
+      #include <skinning_pars_vertex>
+
+      varying vec2 vUv;
+      varying vec3 vNormal;
+      varying vec3 vWorldPosition;
+      varying vec3 vViewDir;
+
+      void main() {
+        vUv = uv;
+
+        #include <begin_vertex>
+        #include <beginnormal_vertex>
+        #include <skinbase_vertex>
+        #include <skinning_vertex>
+        #include <skinnormal_vertex>
+
+        vec4 worldPosition = modelMatrix * vec4(transformed, 1.0);
+        vWorldPosition = worldPosition.xyz;
+        vNormal = normalize(mat3(modelMatrix) * objectNormal);
+        vViewDir = normalize(cameraPosition - worldPosition.xyz);
+
+        vec4 mvPosition = modelViewMatrix * vec4(transformed, 1.0);
+        gl_Position = projectionMatrix * mvPosition;
+      }
+    `;
+
+    const fragmentShader = `
+      #include <common>
+
+      uniform sampler2D uMap;
+      uniform float uTime;
+      uniform float uItemLevel;
+      uniform vec3 uGlowColor;
+      uniform vec3 uLightDirection;
+      uniform vec3 uAmbientColor;
+
+      varying vec2 vUv;
+      varying vec3 vNormal;
+      varying vec3 vWorldPosition;
+      varying vec3 vViewDir;
+
+      void main() {
+        vec4 base = texture2D(uMap, vUv);
+        if (base.a < 0.1) discard;
+
+        vec3 normal = normalize(vNormal);
+        float ndotl = max(0.1, dot(normal, -uLightDirection));
+        vec3 color = base.rgb * (uAmbientColor + vec3(ndotl));
+
+        float itemLevel = uItemLevel;
+        float brightness = 1.0;
+        float ghostIntensity = 0.0;
+
+        if (itemLevel < 7.0) {
+          brightness = 1.0;
+          ghostIntensity = 0.0;
+        } else if (itemLevel < 9.0) {
+          brightness = 1.6 + (itemLevel - 8.0) * 0.2;
+          ghostIntensity = 0.30;
+        } else if (itemLevel < 10.0) {
+          brightness = 1.8 + (itemLevel - 9.0) * 0.2;
+          ghostIntensity = 0.8;
+        } else {
+          brightness = 1.8 + (itemLevel - 10.0) * 0.2;
+          ghostIntensity = 0.7 + (itemLevel / 30.0);
+        }
+
+        float subtlePulse = (1.0 + sin(uTime * 0.8)) * 0.03 + 0.97;
+        float shimmer = (1.0 + sin(uTime * 8.0 + normal.x * 12.0)) * 0.15 + 0.85;
+
+        vec2 ghostOffset1 = vec2(sin(uTime * 0.8) * 0.035, cos(uTime * 0.7) * 0.035) * ghostIntensity;
+        vec2 ghostOffset2 = vec2(sin(uTime * 1.0 + 2.1) * 0.025, cos(uTime * 0.9 + 1.8) * 0.025) * ghostIntensity;
+        vec2 ghostOffset3 = vec2(sin(uTime * 1.2 + 4.2) * 0.02, cos(uTime * 1.1 + 3.7) * 0.02) * ghostIntensity;
+        vec2 ghostOffset4 = vec2(sin(uTime * 0.6 + 1.1) * 0.015, cos(uTime * 1.3 + 2.3) * 0.015) * ghostIntensity;
+
+        vec3 ghost1 = texture2D(uMap, vUv + ghostOffset1).rgb;
+        vec3 ghost2 = texture2D(uMap, vUv + ghostOffset2).rgb;
+        vec3 ghost3 = texture2D(uMap, vUv + ghostOffset3).rgb;
+        vec3 ghost4 = texture2D(uMap, vUv + ghostOffset4).rgb;
+
+        if (itemLevel >= 7.0) {
+          color = color * brightness * subtlePulse;
+          color += ghost1 * (0.8 * ghostIntensity) * shimmer;
+          color += ghost2 * (0.6 * ghostIntensity) * shimmer;
+          color += ghost3 * (0.5 * ghostIntensity) * shimmer;
+          color += ghost4 * (0.4 * ghostIntensity) * shimmer;
+        } else {
+          color = color * brightness;
+        }
+
+        float extraGlow = max(itemLevel - 9.0, 0.0) * 0.1;
+        float glowEffect = (1.0 + sin(uTime * 1.0)) * 0.03 + 0.2;
+        color += base.rgb * glowEffect * extraGlow * 0.2;
+
+        gl_FragColor = vec4(color, base.a);
+        #include <tonemapping_fragment>
+        #include <colorspace_fragment>
+      }
+    `;
+
+    const material = new THREE.ShaderMaterial({
+      uniforms: {
+        uMap: { value: texture },
+        uTime: { value: 0 },
+        uItemLevel: { value: this.itemLevel },
+        uGlowColor: { value: this.itemGlowColor.clone() },
+        uLightDirection: { value: new THREE.Vector3(0.707, -0.707, 0).normalize() },
+        uAmbientColor: { value: new THREE.Color(0.3, 0.3, 0.3) },
+      },
+      vertexShader,
+      fragmentShader,
+      transparent: false,
+      depthWrite: true,
+      blending: THREE.NoBlending,
+      toneMapped: true,
+      side: THREE.DoubleSide,
+    });
+
+    (material as any).skinning = true;
+    material.needsUpdate = true;
+
+    return material;
   }
 
   private async getTextureForPath(path: string): Promise<THREE.Texture | null> {
@@ -1618,6 +1795,8 @@ export class CharacterTestScene {
     if (this.blendingList) {
       this.blendingList.innerHTML = '';
     }
+
+    this.itemShaderMaterials.clear();
   }
 
   private async ensurePlayerAnimations(): Promise<THREE.AnimationClip[] | null> {
@@ -1651,6 +1830,13 @@ export class CharacterTestScene {
 
     if (this.mixer && !this.isRecordingGif) {
       this.mixer.update(delta);
+    }
+
+    if (this.itemShaderMaterials.size) {
+      const time = performance.now() * 0.001;
+      this.itemShaderMaterials.forEach(material => {
+        material.uniforms.uTime.value = time;
+      });
     }
 
     if (this.axesHelper && this.characterRoot && this.axesHelper.visible) {
