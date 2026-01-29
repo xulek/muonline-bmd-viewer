@@ -27,8 +27,11 @@ function createWindow() {
       responseHeaders: {
         ...details.responseHeaders,
         'Content-Security-Policy': [
-          "default-src 'self' 'unsafe-inline' 'unsafe-eval' blob: data:; " +
-          "script-src 'self' 'unsafe-inline' 'unsafe-eval'; " +
+          // Removed 'unsafe-eval' for better security
+          // Web Workers still work with blob: URLs
+          "default-src 'self' 'unsafe-inline' blob: data:; " +
+          "script-src 'self' 'unsafe-inline'; " +
+          "worker-src 'self' blob:; " +
           "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; " +
           "font-src 'self' https://fonts.gstatic.com; " +
           "img-src 'self' data: blob:;"

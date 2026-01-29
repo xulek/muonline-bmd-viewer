@@ -9,90 +9,11 @@ import GIF from 'gif.js';
 import gifWorkerUrl from 'gif.js/dist/gif.worker.js?url';
 import { isElectron, autoSearchTextures, readFileFromPath, createFileFromElectronData, getFilePathFromFile } from './electron-helper';
 import { CharacterTestScene } from './character-test-scene';
+import { SkinnedVertexNormalsHelper } from './helpers/SkinnedVertexNormalsHelper';
+import { Disposer } from './utils/Disposer';
+import { FileValidator, FileValidationError } from './utils/FileValidator';
+import { logger } from './utils/Logger';
 import './style.css';
-
-class SkinnedVertexNormalsHelper extends THREE.LineSegments {
-    public skinned: THREE.SkinnedMesh;
-    public size: number;
-
-    private _vertex = new THREE.Vector3();
-    private _skinnedVertex = new THREE.Vector3();
-    private _normal = new THREE.Vector3();
-    private _indices: Uint32Array;
-
-    constructor(skinned: THREE.SkinnedMesh, size: number, color: number) {
-        const srcGeo = skinned.geometry as THREE.BufferGeometry;
-        const posAttr = srcGeo.getAttribute('position') as THREE.BufferAttribute | null;
-
-        const count = posAttr ? posAttr.count : 0;
-
-        const maxLines = 2000;
-        const sampleCount = count > 0 ? Math.min(count, maxLines) : 0;
-
-        const indices = new Uint32Array(sampleCount || 0);
-        for (let j = 0; j < sampleCount; j++) {
-            indices[j] = Math.floor((j / sampleCount) * count);
-        }
-        const positions = new Float32Array(indices.length * 2 * 3);
-
-        const geometry = new THREE.BufferGeometry();
-        geometry.setAttribute('position', new THREE.BufferAttribute(positions, 3));
-
-        const material = new THREE.LineBasicMaterial({ color, toneMapped: false });
-
-        super(geometry, material);
-
-        this.skinned = skinned;
-        this.size = size;
-        this._indices = indices;
-        this.matrixAutoUpdate = false;
-    }
-
-    public update(): void {
-        const skinned = this.skinned;
-        const srcGeo = skinned.geometry as THREE.BufferGeometry;
-        const posAttr = srcGeo.getAttribute('position') as THREE.BufferAttribute | null;
-        const normAttr = srcGeo.getAttribute('normal') as THREE.BufferAttribute | null;
-
-        const dstAttr = this.geometry.getAttribute('position') as THREE.BufferAttribute | null;
-
-        if (!posAttr || !normAttr || !dstAttr || !this._indices.length) return;
-
-        skinned.updateMatrixWorld(true);
-
-        const matrixWorld = skinned.matrixWorld;
-        const normalMatrix = new THREE.Matrix3().getNormalMatrix(matrixWorld);
-        const size = this.size;
-
-        const vertex = this._vertex;
-        const skinnedVertex = this._skinnedVertex;
-        const normal = this._normal;
-
-        for (let s = 0; s < this._indices.length; s++) {
-            const i = this._indices[s];
-
-            vertex.fromBufferAttribute(posAttr, i);
-
-            skinnedVertex.copy(vertex);
-            skinned.applyBoneTransform(i, skinnedVertex);
-            skinnedVertex.applyMatrix4(matrixWorld);
-
-            normal.fromBufferAttribute(normAttr, i);
-            normal.applyMatrix3(normalMatrix).normalize().multiplyScalar(size);
-
-            const idx = s * 2;
-            dstAttr.setXYZ(idx, skinnedVertex.x, skinnedVertex.y, skinnedVertex.z);
-            dstAttr.setXYZ(idx + 1,
-                skinnedVertex.x + normal.x,
-                skinnedVertex.y + normal.y,
-                skinnedVertex.z + normal.z);
-        }
-
-        dstAttr.needsUpdate = true;
-
-        this.matrixWorld.identity();
-    }
-}
 
 // == View ==
 let skeletonHelper: THREE.SkeletonHelper | null = null;
@@ -172,7 +93,7 @@ class App {
     private normalsUpdateCounter = 0;
 
     constructor() {
-        console.log('%c[App] constructor', 'color:#0f0');
+        logger.debug('%c[App] constructor', 'color:#0f0');
         this.initThree();
         this.initUI();
         this.animate(performance.now());
@@ -186,7 +107,7 @@ class App {
     // THREE.JS (no changes)
     //----------------------------------------------------------
     private initThree() {
-        console.groupCollapsed('%c[App] initThree()', 'color:#0f0');
+        logger.groupDebug('%c[App] initThree()', 'color:#0f0');
         const container = document.getElementById('canvas-container');
         if (!container) throw new Error('#canvas-container not found in HTML!');
         this.scene = new THREE.Scene();
@@ -220,14 +141,14 @@ class App {
         this.scene.add(this.directionalLight);
         this.gridHelper = new THREE.GridHelper(500, 10);
         this.scene.add(this.gridHelper);
-        console.groupEnd();
+        logger.groupEnd();
     }
 
     //----------------------------------------------------------
     // UI - Modified
     //----------------------------------------------------------
     private initUI() {
-        console.groupCollapsed('%c[App] initUI()', 'color:#0f0');
+        logger.groupDebug('%c[App] initUI()', 'color:#0f0');
 
         const bmdZone   = document.getElementById('bmd-drop-zone')!;
         const bmdInput  = document.getElementById('bmd-file-input') as HTMLInputElement;
@@ -376,9 +297,9 @@ class App {
                         const electronPath = getFilePathFromFile(file);
                         if (electronPath) {
                             filePath = electronPath;
-                            console.log('[BMD drop] Got path from Electron API:', filePath);
+                            logger.debug('[BMD drop] Got path from Electron API:', filePath);
                         } else {
-                            console.warn('[BMD drop] Could not get file path from Electron');
+                            logger.warn('[BMD drop] Could not get file path from Electron');
                         }
                     }
 
@@ -448,9 +369,9 @@ class App {
                         const electronPath = getFilePathFromFile(file);
                         if (electronPath) {
                             filePath = electronPath;
-                            console.log('[Attachment drop] Got path from Electron API:', filePath);
+                            logger.debug('[Attachment drop] Got path from Electron API:', filePath);
                         } else {
-                            console.warn('[Attachment drop] Could not get file path from Electron');
+                            logger.warn('[Attachment drop] Could not get file path from Electron');
                         }
                     }
 
@@ -516,22 +437,22 @@ class App {
                     const electronPath = getFilePathFromFile(file);
                     if (electronPath) {
                         filePath = electronPath;
-                        console.log('%c[Canvas drop] Got BMD path from Electron API:', 'color: #4CAF50', filePath);
+                        logger.debug('%c[Canvas drop] Got BMD path from Electron API:', 'color: #4CAF50', filePath);
                     }
                 }
 
                 await this.handleBmdFile(file, filePath);
-                console.log('%c[Canvas drop] Loaded BMD:', 'color: #4CAF50', file.name);
+                logger.debug('%c[Canvas drop] Loaded BMD:', 'color: #4CAF50', file.name);
             }
 
             // Handle texture files
             if (textureFiles.length > 0) {
                 await this.handleMultipleTextureFiles(textureFiles as any);
-                console.log('%c[Canvas drop] Loaded textures:', 'color: #4CAF50', textureFiles.map(f => f.name).join(', '));
+                logger.debug('%c[Canvas drop] Loaded textures:', 'color: #4CAF50', textureFiles.map(f => f.name).join(', '));
             }
 
             if (bmdFiles.length === 0 && textureFiles.length === 0) {
-                console.warn('[Canvas drop] No BMD or texture files found in drop');
+                logger.warn('[Canvas drop] No BMD or texture files found in drop');
             }
         });
 
@@ -597,7 +518,7 @@ class App {
 
         undoAttachBtn.addEventListener('click', () => this.removeAttachment());
 
-        console.groupEnd();
+        logger.groupEnd();
     }
 
     private initScaleSlider() {                                                            
@@ -618,16 +539,29 @@ class App {
           }
         }
     
-    private handleBmdFile = (file: File, filePath?: string) => {
-        console.log(`[App] handleBmdFile("${file.name}")`);
-        this.bmdFile = file;
-        this.lastBmdFilePath = filePath || null;  // Store file path for Electron texture search
-        document.querySelector('#bmd-drop-zone p')!.textContent = `Selected: ${file.name}`;
-        this.loadAndDisplayModel();
+    private handleBmdFile = async (file: File, filePath?: string) => {
+        logger.info(`handleBmdFile("${file.name}")`);
+
+        try {
+            // Validate file before processing
+            await FileValidator.validateBMDFile(file);
+
+            this.bmdFile = file;
+            this.lastBmdFilePath = filePath || null;  // Store file path for Electron texture search
+            document.querySelector('#bmd-drop-zone p')!.textContent = `Selected: ${file.name}`;
+            this.loadAndDisplayModel();
+        } catch (error) {
+            if (error instanceof FileValidationError) {
+                alert(`Invalid file: ${error.message}`);
+                logger.error('File validation failed:', error.message);
+            } else {
+                throw error;
+            }
+        }
     }
 
     private handleAnimBmdFile = (file: File) => {
-        console.log(`[App] handleAnimBmdFile("${file.name}")`);
+        logger.debug(`[App] handleAnimBmdFile("${file.name}")`);
         this.animBmdFile = file;
         document.querySelector('#anim-bmd-drop-zone p')!.textContent = `Selected: ${file.name}`;
         this.loadExternalAnimations();
@@ -639,7 +573,7 @@ class App {
     }
 
     private handleTextureFile = (file: File) => {
-        console.log(`[App] handleTextureFile("${file.name}")`);
+        logger.debug(`[App] handleTextureFile("${file.name}")`);
         this.loadAndApplyTexture(file);
     }
 
@@ -678,10 +612,10 @@ class App {
             link.click();
             URL.revokeObjectURL(link.href);
         
-            console.log(`✔️  Saved ${fileName} (${(blob.size / 1024).toFixed(1)} KB)`);
+            logger.debug(`✔️  Saved ${fileName} (${(blob.size / 1024).toFixed(1)} KB)`);
             },
             (error) => {
-            console.error('❌ GLTFExporter error:', error);
+            logger.error('❌ GLTFExporter error:', error);
             alert('Error during export. Check the console.');
             },
             options
@@ -867,8 +801,9 @@ class App {
         if (!this.bmdFile) return;
         const statusEl = document.getElementById('status')!;
         statusEl.textContent = 'Loading model…';
-        console.groupCollapsed('%c[App] loadAndDisplayModel()', 'color:yellow');
-        console.time('loadAndDisplayModel');
+        logger.groupDebug('loadAndDisplayModel()');
+        logger.time('loadAndDisplayModel');
+
         // Reset state
         this.clearScene();
         this.loadedGroup = null;
@@ -895,20 +830,20 @@ class App {
 
             // Auto-search and load textures in Electron
             if (isElectron() && this.lastBmdFilePath && requiredTextures.length > 0) {
-                console.log('%c[Electron] Auto-searching textures...', 'color: #4CAF50');
-                console.log('[Electron] Required textures from BMD:', requiredTextures);
-                console.log('[Electron] BMD file path:', this.lastBmdFilePath);
+                logger.debug('%c[Electron] Auto-searching textures...', 'color: #4CAF50');
+                logger.debug('[Electron] Required textures from BMD:', requiredTextures);
+                logger.debug('[Electron] BMD file path:', this.lastBmdFilePath);
                 statusEl.textContent = 'Searching for textures...';
 
                 try {
                     const foundTextures = await autoSearchTextures(this.lastBmdFilePath, requiredTextures);
                     const foundCount = Object.keys(foundTextures).length;
-                    console.log('[Electron] Search result:', foundTextures);
+                    logger.debug('[Electron] Search result:', foundTextures);
 
                     if (foundCount > 0) {
                         // Count total files (each texture name may have multiple files)
                         const totalFiles = Object.values(foundTextures).reduce((sum, paths) => sum + paths.length, 0);
-                        console.log(`%c[Electron] Found ${foundCount} texture names (${totalFiles} files), loading...`, 'color: #4CAF50');
+                        logger.debug(`%c[Electron] Found ${foundCount} texture names (${totalFiles} files), loading...`, 'color: #4CAF50');
 
                         // Load each found texture file
                         for (const [textureName, texturePaths] of Object.entries(foundTextures)) {
@@ -926,7 +861,7 @@ class App {
                         statusEl.textContent = `Loaded: ${group.name} | No textures found automatically`;
                     }
                 } catch (error) {
-                    console.error('[Electron] Error auto-searching textures:', error);
+                    logger.error('[Electron] Error auto-searching textures:', error);
                     statusEl.textContent = `Loaded: ${group.name} | Texture search failed`;
                 }
             }
@@ -965,11 +900,11 @@ class App {
             this.updateNormalsHelpersState();
 
         } catch (err) {
-            console.error('‼️ loader.load() ERROR', err);
+            logger.error('loader.load() ERROR', err);
             statusEl.textContent = `Error: ${(err as Error).message}`;
         } finally {
-            console.timeEnd('loadAndDisplayModel');
-            console.groupEnd();
+            logger.timeEnd('loadAndDisplayModel');
+            logger.groupEnd();
         }
     }
 
@@ -985,7 +920,7 @@ class App {
 
             // Fallback: search in loadedGroup
             if (!skeleton) {
-                console.log('[loadExternalAnimations] mainSkeleton not available, searching in loadedGroup...');
+                logger.debug('[loadExternalAnimations] mainSkeleton not available, searching in loadedGroup...');
                 this.loadedGroup.traverse(obj => {
                     if (!skeleton && (obj as THREE.SkinnedMesh).isSkinnedMesh) {
                         skeleton = (obj as THREE.SkinnedMesh).skeleton;
@@ -994,11 +929,11 @@ class App {
             }
 
             if (!skeleton) {
-                console.warn('No skeleton found for external animations');
+                logger.warn('No skeleton found for external animations');
                 return;
             }
 
-            console.log('[loadExternalAnimations] Using skeleton with', skeleton.bones.length, 'bones');
+            logger.debug('[loadExternalAnimations] Using skeleton with', skeleton.bones.length, 'bones');
             const clips = this.bmdLoader.loadAnimationsFrom(buffer, skeleton);
             if (clips.length) {
                 this.loadedGroup.animations = clips;
@@ -1006,7 +941,7 @@ class App {
                 document.getElementById('status')!.textContent = `Animations loaded from ${this.animBmdFile.name}`;
             }
         } catch (e) {
-            console.error('Failed to load external animations', e);
+            logger.error('Failed to load external animations', e);
         }
     }
 
@@ -1079,7 +1014,8 @@ class App {
                     }
                 }
             });
-            this.mixer = null;
+            // Properly dispose mixer before setting to null
+            this.mixer = Disposer.disposeMixer(this.mixer);
             this.currentAction = null;
             document.getElementById('animations-container')!.innerHTML = '';
         }
@@ -1113,6 +1049,9 @@ class App {
         }
         this.normalsVisible = false;
 
+        // Clear and dispose all attachments
+        Disposer.disposeObjectArray(this.attachments);
+
         if (this.exportBtn) this.exportBtn.disabled = true;
         this.updateDiagnosticInfo();
     }
@@ -1139,7 +1078,7 @@ class App {
 
     private async loadAndApplyTexture(file: File) {
         if (!this.loadedGroup) {
-        console.warn('Model not loaded - no textures.');
+        logger.warn('Model not loaded - no textures.');
         return;
         }
     
@@ -1217,7 +1156,7 @@ class App {
             });
 
             if (!applied) {
-                console.warn(`No matching mesh found for "${file.name}"`);
+                logger.warn(`No matching mesh found for "${file.name}"`);
             }
 
             status.textContent = applied
@@ -1247,7 +1186,7 @@ class App {
         }
     
         } catch (e) {
-        console.error('Texture load error:', e);
+        logger.error('Texture load error:', e);
         status.textContent = `Error: ${(e as Error).message}`;
         }
     }
@@ -1637,7 +1576,7 @@ class App {
 
     /** Setup attachment controls after file selection */
     private async setupAttachmentControls() {
-        console.log('[setupAttachmentControls] Starting...');
+        logger.debug('[setupAttachmentControls] Starting...');
         if (!this.loadedGroup || !this.currentAttachmentFile) {
             alert('First load the base character model.');
             return;
@@ -1649,7 +1588,7 @@ class App {
         }
 
         const bones = this.mainSkeleton.bones;
-        console.log(`[setupAttachmentControls] Main skeleton has ${bones.length} bones`);
+        logger.debug(`[setupAttachmentControls] Main skeleton has ${bones.length} bones`);
 
         // Show controls
         const controls = document.getElementById('attach-controls')!;
@@ -1682,20 +1621,20 @@ class App {
 
     /** Load attachment model and attach to specified bone */
     private async loadAttachmentAtBone(boneIndex: number) {
-        console.log(`[loadAttachmentAtBone] Loading attachment at bone ${boneIndex}`);
+        logger.debug(`[loadAttachmentAtBone] Loading attachment at bone ${boneIndex}`);
         if (!this.loadedGroup || !this.currentAttachmentFile || !this.mainSkeleton) {
-            console.warn('[loadAttachmentAtBone] Missing required objects');
+            logger.warn('[loadAttachmentAtBone] Missing required objects');
             return;
         }
 
         const bones = this.mainSkeleton.bones;
         if (boneIndex < 0 || boneIndex >= bones.length) {
-            console.warn(`[loadAttachmentAtBone] Bone index out of range`);
+            logger.warn(`[loadAttachmentAtBone] Bone index out of range`);
             return;
         }
 
         const target = bones[boneIndex];
-        console.log(`[loadAttachmentAtBone] Attaching to bone: ${target.name || 'Unnamed'}`);
+        logger.debug(`[loadAttachmentAtBone] Attaching to bone: ${target.name || 'Unnamed'}`);
 
         // Remove previous attachment if exists
         if (this.currentAttachment) {
@@ -1723,7 +1662,7 @@ class App {
 
         // Auto-search and load textures in Electron
         if (isElectron() && this.lastAttachmentFilePath && requiredTextures.length > 0) {
-            console.log('%c[Electron] Auto-searching textures for attachment...', 'color: #4CAF50');
+            logger.debug('%c[Electron] Auto-searching textures for attachment...', 'color: #4CAF50');
 
             try {
                 const foundTextures = await autoSearchTextures(this.lastAttachmentFilePath, requiredTextures);
@@ -1732,7 +1671,7 @@ class App {
                 if (foundCount > 0) {
                     // Count total files (each texture name may have multiple files)
                     const totalFiles = Object.values(foundTextures).reduce((sum, paths) => sum + paths.length, 0);
-                    console.log(`%c[Electron] Found ${foundCount} texture names (${totalFiles} files) for attachment, loading...`, 'color: #4CAF50');
+                    logger.debug(`%c[Electron] Found ${foundCount} texture names (${totalFiles} files) for attachment, loading...`, 'color: #4CAF50');
 
                     // Load each found texture file
                     for (const [textureName, texturePaths] of Object.entries(foundTextures)) {
@@ -1745,10 +1684,10 @@ class App {
                         }
                     }
 
-                    console.log(`%c[Electron] Auto-loaded ${totalFiles} texture files for ${foundCount} base names`, 'color: #4CAF50');
+                    logger.debug(`%c[Electron] Auto-loaded ${totalFiles} texture files for ${foundCount} base names`, 'color: #4CAF50');
                 }
             } catch (error) {
-                console.error('[Electron] Error auto-searching textures for attachment:', error);
+                logger.error('[Electron] Error auto-searching textures for attachment:', error);
             }
         }
 
@@ -1770,20 +1709,20 @@ class App {
 
     /** Change bone for current attachment (without reloading model) */
     private changeBoneForAttachment(boneIndex: number) {
-        console.log(`[changeBoneForAttachment] Changing to bone ${boneIndex}`);
+        logger.debug(`[changeBoneForAttachment] Changing to bone ${boneIndex}`);
         if (!this.loadedGroup || !this.currentAttachment || !this.mainSkeleton) {
-            console.warn('[changeBoneForAttachment] Missing required objects');
+            logger.warn('[changeBoneForAttachment] Missing required objects');
             return;
         }
 
         const bones = this.mainSkeleton.bones;
         if (boneIndex < 0 || boneIndex >= bones.length) {
-            console.warn(`[changeBoneForAttachment] Bone index ${boneIndex} out of range (0-${bones.length - 1})`);
+            logger.warn(`[changeBoneForAttachment] Bone index ${boneIndex} out of range (0-${bones.length - 1})`);
             return;
         }
 
         const target = bones[boneIndex];
-        console.log(`[changeBoneForAttachment] Target bone: ${target.name || 'Unnamed'}`);
+        logger.debug(`[changeBoneForAttachment] Target bone: ${target.name || 'Unnamed'}`);
 
         // Move attachment to new bone
         if (this.currentAttachment.parent) {
@@ -1939,22 +1878,8 @@ class App {
             return;
         }
 
-        if (last.parent) {
-            last.parent.remove(last);
-        }
-
-        last.traverse(obj => {
-            if ((obj as THREE.Mesh).isMesh) {
-                (obj as THREE.Mesh).geometry.dispose();
-                const mat = (obj as THREE.Mesh).material;
-                if (Array.isArray(mat)) {
-                    mat.forEach(m => m.dispose());
-                } else {
-                    if ((mat as any).map) (mat as any).map.dispose();
-                    (mat as THREE.Material).dispose();
-                }
-            }
-        });
+        // Use Disposer utility for proper cleanup
+        Disposer.disposeObject3D(last);
 
         if (skeletonHelper) {
             this.scene.remove(skeletonHelper);

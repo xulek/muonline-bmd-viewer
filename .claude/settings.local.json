@@ -9,7 +9,8 @@
       "Bash(npm install)",
       "Bash(npm audit fix:*)",
       "Bash(npx tsc:*)",
-      "Bash(find:*)"
+      "Bash(find:*)",
+      "Bash(npm test:*)"
     ],
     "deny": [],
     "ask": []

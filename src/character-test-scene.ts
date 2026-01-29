@@ -5,91 +5,10 @@ import { BMDLoader, convertTgaToDataUrl } from './bmd-loader';
 import { convertOzjToDataUrl } from './ozj-loader';
 import { isElectron, openDirectoryDialog, readFileFromPath, searchTextures } from './electron-helper';
 import { parseItemBmd, ItemDefinition } from './item-bmd';
+import { SkinnedVertexNormalsHelper } from './helpers/SkinnedVertexNormalsHelper';
+import { Disposer } from './utils/Disposer';
 import GIF from 'gif.js';
 import gifWorkerUrl from 'gif.js/dist/gif.worker.js?url';
-
-class SkinnedVertexNormalsHelper extends THREE.LineSegments {
-  public skinned: THREE.SkinnedMesh;
-  public size: number;
-
-  private _vertex = new THREE.Vector3();
-  private _skinnedVertex = new THREE.Vector3();
-  private _normal = new THREE.Vector3();
-  private _indices: Uint32Array;
-
-  constructor(skinned: THREE.SkinnedMesh, size: number, color: number) {
-    const srcGeo = skinned.geometry as THREE.BufferGeometry;
-    const posAttr = srcGeo.getAttribute('position') as THREE.BufferAttribute | null;
-
-    const count = posAttr ? posAttr.count : 0;
-
-    const maxLines = 2000;
-    const sampleCount = count > 0 ? Math.min(count, maxLines) : 0;
-
-    const indices = new Uint32Array(sampleCount || 0);
-    for (let j = 0; j < sampleCount; j++) {
-      indices[j] = Math.floor((j / sampleCount) * count);
-    }
-    const positions = new Float32Array(indices.length * 2 * 3);
-
-    const geometry = new THREE.BufferGeometry();
-    geometry.setAttribute('position', new THREE.BufferAttribute(positions, 3));
-
-    const material = new THREE.LineBasicMaterial({ color, toneMapped: false });
-
-    super(geometry, material);
-
-    this.skinned = skinned;
-    this.size = size;
-    this._indices = indices;
-    this.matrixAutoUpdate = false;
-  }
-
-  public update(): void {
-    const skinned = this.skinned;
-    const srcGeo = skinned.geometry as THREE.BufferGeometry;
-    const posAttr = srcGeo.getAttribute('position') as THREE.BufferAttribute | null;
-    const normAttr = srcGeo.getAttribute('normal') as THREE.BufferAttribute | null;
-
-    const dstAttr = this.geometry.getAttribute('position') as THREE.BufferAttribute | null;
-
-    if (!posAttr || !normAttr || !dstAttr || !this._indices.length) return;
-
-    skinned.updateMatrixWorld(true);
-
-    const matrixWorld = skinned.matrixWorld;
-    const normalMatrix = new THREE.Matrix3().getNormalMatrix(matrixWorld);
-    const size = this.size;
-
-    const vertex = this._vertex;
-    const skinnedVertex = this._skinnedVertex;
-    const normal = this._normal;
-
-    for (let s = 0; s < this._indices.length; s++) {
-      const i = this._indices[s];
-
-      vertex.fromBufferAttribute(posAttr, i);
-
-      skinnedVertex.copy(vertex);
-      skinned.applyBoneTransform(i, skinnedVertex);
-      skinnedVertex.applyMatrix4(matrixWorld);
-
-      normal.fromBufferAttribute(normAttr, i);
-      normal.applyMatrix3(normalMatrix).normalize().multiplyScalar(size);
-
-      const idx = s * 2;
-      dstAttr.setXYZ(idx, skinnedVertex.x, skinnedVertex.y, skinnedVertex.z);
-      dstAttr.setXYZ(idx + 1,
-        skinnedVertex.x + normal.x,
-        skinnedVertex.y + normal.y,
-        skinnedVertex.z + normal.z);
-    }
-
-    dstAttr.needsUpdate = true;
-
-    this.matrixWorld.identity();
-  }
-}
 
 const TEXTURE_EXTENSIONS = ['.jpg', '.jpeg', '.png', '.tga', '.ozj', '.ozt'];
 
@@ -807,6 +726,9 @@ export class CharacterTestScene {
       }
     }
 
+    // Hide base body parts that are replaced by equipped items
+    this.hideReplacedBaseParts(classToken, selections);
+
     if (shouldReframe) {
       this.frameCharacter();
     }
@@ -860,6 +782,58 @@ export class CharacterTestScene {
   private describeItem(item: ItemDefinition): string {
     const name = item.itemName || item.modelName || `Item ${item.id}`;
     return `${name} (G${item.group} / ${item.id})`;
+  }
+
+  /**
+   * Mapping from equipment slot label to the base body part label prefix.
+   * When an item is equipped in a slot, the corresponding base mesh is hidden.
+   */
+  private static readonly SLOT_TO_BASE_PART: Record<string, string> = {
+    'Helm': 'Base HelmClass',
+    'Armor': 'Base ArmorClass',
+    'Pants': 'Base PantClass',
+    'Gloves': 'Base GloveClass',
+    'Boots': 'Base BootClass',
+  };
+
+  /**
+   * Hides base body part meshes that are replaced by equipped items.
+   * For example, equipping a helmet hides the base head mesh.
+   */
+  private hideReplacedBaseParts(
+    classToken: string,
+    selections: Array<{ select: HTMLSelectElement; type: string; label: string }>
+  ): void {
+    if (!this.characterRoot) return;
+
+    // Determine which base parts should be hidden
+    const hiddenBaseLabels = new Set<string>();
+    for (const entry of selections) {
+      if (entry.type !== 'armor') continue;
+
+      const item = this.getSelectedItem(entry.select);
+      if (!item) continue; // No item equipped in this slot
+
+      const basePrefix = CharacterTestScene.SLOT_TO_BASE_PART[entry.label];
+      if (basePrefix) {
+        hiddenBaseLabels.add(`${basePrefix}${classToken}`);
+      }
+    }
+
+    if (hiddenBaseLabels.size === 0) return;
+
+    // Traverse character and hide matching base meshes
+    this.characterRoot.traverse(obj => {
+      if (!(obj as THREE.Mesh).isMesh) return;
+      const mesh = obj as THREE.Mesh;
+      if (
+        mesh.userData.itemKind === 'base' &&
+        typeof mesh.userData.itemLabel === 'string' &&
+        hiddenBaseLabels.has(mesh.userData.itemLabel)
+      ) {
+        mesh.visible = false;
+      }
+    });
   }
 
   private tagMeshes(group: THREE.Group, label: string, kind: 'base' | 'equipment') {
@@ -1854,7 +1828,9 @@ export class CharacterTestScene {
     this.characterRoot = null;
     this.baseSkeleton = null;
     this.baseBindMatrix = null;
-    this.mixer = null;
+
+    // Properly dispose mixer before setting to null
+    this.mixer = Disposer.disposeMixer(this.mixer);
     this.currentAction = null;
 
     if (this.skeletonHelper) {
@@ -1891,7 +1867,32 @@ export class CharacterTestScene {
       this.blendingList.innerHTML = '';
     }
 
-    this.itemShaderMaterials.clear();
+    // Properly dispose shader materials before clearing
+    Disposer.disposeShaderMaterials(this.itemShaderMaterials);
+  }
+
+  /**
+   * Clears the texture cache and disposes all cached textures.
+   * Call this when switching characters or when memory needs to be freed.
+   */
+  public clearTextureCache(): void {
+    Disposer.disposeTextureCache(this.textureCache);
+  }
+
+  /**
+   * Cleanup method to dispose all resources when scene is no longer needed.
+   */
+  public dispose(): void {
+    this.clearCharacter();
+    this.clearTextureCache();
+
+    // Dispose renderer
+    this.renderer.dispose();
+
+    // Dispose scene objects
+    if (this.gridHelper) {
+      Disposer.disposeObject3D(this.gridHelper);
+    }
   }
 
   private async ensurePlayerAnimations(): Promise<THREE.AnimationClip[] | null> {
