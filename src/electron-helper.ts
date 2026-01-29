@@ -180,7 +180,7 @@ export function showElectronModeIndicator(): void {
 export async function autoSearchTextures(
   bmdFilePath: string,
   requiredTextures: string[]
-): Promise<Record<string, string>> {
+): Promise<Record<string, string[]>> {
   if (!isElectron() || !window.electronAPI) {
     console.warn('autoSearchTextures is only available in Electron');
     return {};

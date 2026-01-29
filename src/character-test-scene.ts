@@ -283,7 +283,7 @@ export class CharacterTestScene {
   constructor() {
     this.initThree();
     this.initUI();
-    this.animate(performance.now());
+    this.animate();
   }
 
   public setActive(active: boolean) {

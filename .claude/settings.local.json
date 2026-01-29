@@ -2,7 +2,14 @@
   "permissions": {
     "allow": [
       "Bash(npm run build:*)",
-      "Bash(npm run dist:*)"
+      "Bash(npm run dist:*)",
+      "Bash(dir:*)",
+      "Bash(npx npm-check-updates)",
+      "Bash(npx npm-check-updates:*)",
+      "Bash(npm install)",
+      "Bash(npm audit fix:*)",
+      "Bash(npx tsc:*)",
+      "Bash(find:*)"
     ],
     "deny": [],
     "ask": []

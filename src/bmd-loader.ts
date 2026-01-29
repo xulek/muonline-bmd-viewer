@@ -509,7 +509,6 @@ private readStringFromDataView(view: DataView, offset: number, length: number): 
 
             if (tracks.length) {
                 const clip = new THREE.AnimationClip(`action_${a}`, duration, tracks);
-                // @ts-expect-error: userData is not typed on AnimationClip, but Three.js supports it
                 clip.userData = { numAnimationKeys: action.numAnimationKeys }; // Store numAnimationKeys here
                 clips.push(clip);
             }
