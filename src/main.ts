@@ -14,6 +14,12 @@ import { SkinnedVertexNormalsHelper } from './helpers/SkinnedVertexNormalsHelper
 import { Disposer } from './utils/Disposer';
 import { FileValidator, FileValidationError } from './utils/FileValidator';
 import { logger } from './utils/Logger';
+import {
+    applyBlendModeToMaterial,
+    describeBlendMode,
+    detectBlendModeFromTexture,
+    type BlendHeuristicResult,
+} from './utils/TextureBlendHeuristics';
 import './style.css';
 
 // == View ==
@@ -194,6 +200,7 @@ class App {
             gridMaterial.opacity = 0.35;
             gridMaterial.depthWrite = false;
         }
+        this.gridHelper.visible = true;
         this.scene.add(this.gridHelper);
 
         logger.groupEnd();
@@ -1235,6 +1242,25 @@ class App {
         tex.wrapS = tex.wrapT = THREE.RepeatWrapping;
         tex.flipY = false;
         tex.name  = file.name;
+        const blendResult = detectBlendModeFromTexture(tex, file.name);
+        tex.userData.blendHeuristic = blendResult;
+        const blendLabel = describeBlendMode(blendResult.mode);
+        const confidenceLabel = Math.round(blendResult.confidence * 100);
+        const blendByHint = new Map<string, BlendHeuristicResult>([
+            [file.name.toLowerCase(), blendResult],
+        ]);
+        const getBlendForHint = (hint: string): BlendHeuristicResult => {
+            const key = hint.toLowerCase();
+            const cached = blendByHint.get(key);
+            if (cached) return cached;
+            const detected = detectBlendModeFromTexture(tex, hint);
+            blendByHint.set(key, detected);
+            return detected;
+        };
+        logger.debug(
+            `[Texture blend] "${file.name}" -> ${blendLabel} (${confidenceLabel}%) ${blendResult.reason}`,
+            { metrics: blendResult.metrics, scores: blendResult.scores },
+        );
     
         // allow loading PNG/JPG in place of OZT/OZJ and vice versa
         const equivExt: Record<string,string[]> = {
@@ -1273,14 +1299,19 @@ class App {
 
         if (fileExt === 'ozj' || fileExt === 'ozt') {
             let applied = false;
+            let firstAppliedResult: BlendHeuristicResult | null = null;
             meshList.forEach(m => {
                 if (m.isMatch) {
+                    const blendForMesh = getBlendForHint(m.path);
                     const mat = m.mesh.material as THREE.MeshPhongMaterial;
                     if (mat.map) mat.map.dispose();
                     mat.map = tex;
                     mat.color.set(0xffffff);
-                    mat.needsUpdate = true;
+                    applyBlendModeToMaterial(mat, blendForMesh);
                     applied = true;
+                    if (!firstAppliedResult) {
+                        firstAppliedResult = blendForMesh;
+                    }
                     if (this.exportBtn) this.exportBtn.disabled = false;
                 }
             });
@@ -1290,7 +1321,7 @@ class App {
             }
 
             status.textContent = applied
-                ? `Texture "${file.name}" loaded.`
+                ? `Texture "${file.name}" loaded (blend: ${describeBlendMode((firstAppliedResult || blendResult).mode)}, ${Math.round((firstAppliedResult || blendResult).confidence * 100)}%).`
                 : `No matching mesh found for "${file.name}". Check the console.`;
         } else {
             let promptMsg = `Apply texture "${file.name}" to which mesh?\n`;
@@ -1303,13 +1334,15 @@ class App {
 
             if (!isNaN(idx) && meshList[idx]) {
                 const target = meshList[idx].mesh;
+                const targetPath = meshList[idx].path;
+                const targetBlend = getBlendForHint(targetPath);
                 const mat = target.material as THREE.MeshPhongMaterial;
                 if (mat.map) mat.map.dispose();
                 mat.map = tex;
                 mat.color.set(0xffffff);
-                mat.needsUpdate = true;
+                applyBlendModeToMaterial(mat, targetBlend);
                 if (this.exportBtn) this.exportBtn.disabled = false;
-                status.textContent = `Texture "${file.name}" loaded.`;
+                status.textContent = `Texture "${file.name}" loaded (blend: ${describeBlendMode(targetBlend.mode)}, ${Math.round(targetBlend.confidence * 100)}%).`;
             } else {
                 status.textContent = `Texture "${file.name}" was not applied.`;
             }

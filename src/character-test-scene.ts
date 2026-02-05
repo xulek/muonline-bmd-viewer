@@ -8,6 +8,7 @@ import { isElectron, openDirectoryDialog, readFileFromPath, searchTextures } fro
 import { parseItemBmd, ItemDefinition } from './item-bmd';
 import { SkinnedVertexNormalsHelper } from './helpers/SkinnedVertexNormalsHelper';
 import { Disposer } from './utils/Disposer';
+import { applyBlendModeToMaterial, detectBlendModeFromTexture, type BlendHeuristicResult } from './utils/TextureBlendHeuristics';
 import GIF from 'gif.js';
 import gifWorkerUrl from 'gif.js/dist/gif.worker.js?url';
 
@@ -301,6 +302,7 @@ export class CharacterTestScene {
       gridMaterial.opacity = 0.35;
       gridMaterial.depthWrite = false;
     }
+    this.gridHelper.visible = true;
     this.scene.add(this.gridHelper);
   }
 
@@ -960,6 +962,7 @@ export class CharacterTestScene {
   private async applyTexturesForGroup(group: THREE.Group) {
     const texturePaths = new Set<string>();
     const meshes: THREE.Mesh[] = [];
+    const blendCache = new Map<string, BlendHeuristicResult>();
 
     group.traverse(obj => {
       if ((obj as THREE.Mesh).isMesh && (obj as any).userData?.texturePath) {
@@ -979,9 +982,15 @@ export class CharacterTestScene {
       const path = normalizeDataPath((mesh as any).userData?.texturePath || '');
       const tex = textures.get(path);
       if (!tex) return;
+      const hintKey = path.toLowerCase();
+      const blendResult =
+        blendCache.get(hintKey) ||
+        detectBlendModeFromTexture(tex, path);
+      blendCache.set(hintKey, blendResult);
+      tex.userData.blendHeuristic = blendResult;
 
       if ((mesh.userData?.itemKind as string) === 'equipment') {
-        this.applyItemShader(mesh, tex);
+        this.applyItemShader(mesh, tex, blendResult);
         return;
       }
 
@@ -989,12 +998,12 @@ export class CharacterTestScene {
       if (mat && 'map' in mat) {
         mat.map = tex;
         mat.color.set(0xffffff);
-        mat.needsUpdate = true;
+        applyBlendModeToMaterial(mat, blendResult);
       }
     });
   }
 
-  private applyItemShader(mesh: THREE.Mesh, texture: THREE.Texture) {
+  private applyItemShader(mesh: THREE.Mesh, texture: THREE.Texture, blendResult: BlendHeuristicResult) {
     const oldMaterial = mesh.material as THREE.Material | THREE.Material[] | undefined;
     if (Array.isArray(oldMaterial)) {
       oldMaterial.forEach(mat => mat.dispose());
@@ -1003,6 +1012,7 @@ export class CharacterTestScene {
     }
 
     const material = this.createItemShaderMaterial(texture);
+    applyBlendModeToMaterial(material, blendResult);
     mesh.material = material;
     this.itemShaderMaterials.add(material);
   }
@@ -1351,6 +1361,7 @@ export class CharacterTestScene {
       tex.wrapS = tex.wrapT = THREE.RepeatWrapping;
       tex.flipY = false;
       tex.name = name;
+      tex.userData.blendHeuristic = detectBlendModeFromTexture(tex, name);
       return tex;
     } catch (error) {
       console.warn('[CharacterTestScene] Texture load failed', name, error);

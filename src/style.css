@@ -569,14 +569,7 @@ input[type='color'] {
 
 #canvas-container::before,
 #character-canvas-container::before {
-  content: '';
-  position: absolute;
-  inset: 0;
-  pointer-events: none;
-  background-image:
-    linear-gradient(rgba(171, 196, 233, 0.045) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(171, 196, 233, 0.045) 1px, transparent 1px);
-  background-size: 42px 42px;
+  display: none;
 }
 
 #canvas-container::after,
