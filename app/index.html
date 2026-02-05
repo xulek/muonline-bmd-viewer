@@ -11,8 +11,8 @@
   <link
     href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=Oxanium:wght@500;600;700&family=Space+Grotesk:wght@400;500;600;700&display=swap"
     rel="stylesheet">
-  <script type="module" crossorigin src="/muonline-bmd-viewer/app/assets/index-EhgIK-WR.js"></script>
-  <link rel="stylesheet" crossorigin href="/muonline-bmd-viewer/app/assets/index-2rPnHi4o.css">
+  <script type="module" crossorigin src="/muonline-bmd-viewer/app/assets/index-BCUjoHcZ.js"></script>
+  <link rel="stylesheet" crossorigin href="/muonline-bmd-viewer/app/assets/index-CEqC1Qt0.css">
 </head>
 
 <body>
@@ -448,12 +448,36 @@
       document.getElementById('sidebar-toggle'),
       document.getElementById('character-sidebar-toggle'),
     ].filter(Boolean);
+    let resizeTimeoutId = null;
+
+    const notifyViewportResize = () => {
+      window.dispatchEvent(new Event('resize'));
+    };
+
+    const scheduleViewportResize = () => {
+      notifyViewportResize();
+      requestAnimationFrame(notifyViewportResize);
+
+      if (resizeTimeoutId !== null) {
+        clearTimeout(resizeTimeoutId);
+      }
+      resizeTimeoutId = setTimeout(notifyViewportResize, 320);
+    };
 
     sidebarToggles.forEach(btn => {
       btn.addEventListener('click', () => {
         sidebar.classList.toggle('closed');
+        scheduleViewportResize();
       });
     });
+
+    if (sidebar) {
+      sidebar.addEventListener('transitionend', (event) => {
+        if (event.target !== sidebar) return;
+        if (event.propertyName !== 'transform' && event.propertyName !== 'margin-right') return;
+        notifyViewportResize();
+      });
+    }
 
     const tabs = document.querySelectorAll('.tab-btn');
     const sidebarViews = {
@@ -477,6 +501,7 @@
         Object.entries(mainViews).forEach(([key, el]) => {
           if (el) el.classList.toggle('hidden', key !== target);
         });
+        scheduleViewportResize();
       });
     });
 
