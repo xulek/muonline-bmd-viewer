@@ -1,6 +1,7 @@
 // src/character-test-scene.ts
 import * as THREE from 'three';
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
+import { RoomEnvironment } from 'three/examples/jsm/environments/RoomEnvironment.js';
 import { BMDLoader, convertTgaToDataUrl } from './bmd-loader';
 import { convertOzjToDataUrl } from './ozj-loader';
 import { isElectron, openDirectoryDialog, readFileFromPath, searchTextures } from './electron-helper';
@@ -108,7 +109,9 @@ export class CharacterTestScene {
   private controls!: OrbitControls;
   private clock = new THREE.Clock();
   private ambientLight!: THREE.AmbientLight;
+  private hemisphereLight!: THREE.HemisphereLight;
   private directionalLight!: THREE.DirectionalLight;
+  private rimLight!: THREE.DirectionalLight;
 
   private mixer: THREE.AnimationMixer | null = null;
   private currentAction: THREE.AnimationAction | null = null;
@@ -218,7 +221,8 @@ export class CharacterTestScene {
     this.containerEl = container;
 
     this.scene = new THREE.Scene();
-    this.scene.background = new THREE.Color(0x2b2f36);
+    this.scene.background = new THREE.Color(0x0b1322);
+    this.scene.fog = new THREE.FogExp2(0x0b1322, 0.0013);
 
     this.camera = new THREE.PerspectiveCamera(
       75,
@@ -233,8 +237,20 @@ export class CharacterTestScene {
       alpha: true,
       preserveDrawingBuffer: true,
     });
+    this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+    this.renderer.outputColorSpace = THREE.SRGBColorSpace;
+    this.renderer.toneMapping = THREE.ACESFilmicToneMapping;
+    this.renderer.toneMappingExposure = 1.14;
+    this.renderer.shadowMap.enabled = true;
+    this.renderer.shadowMap.type = THREE.PCFSoftShadowMap;
     this.renderer.setSize(container.clientWidth, container.clientHeight);
     container.appendChild(this.renderer.domElement);
+
+    const pmremGenerator = new THREE.PMREMGenerator(this.renderer);
+    const environmentScene = new RoomEnvironment();
+    this.scene.environment = pmremGenerator.fromScene(environmentScene).texture;
+    environmentScene.dispose();
+    pmremGenerator.dispose();
 
     window.addEventListener('resize', () => {
       this.refreshViewport();
@@ -242,15 +258,49 @@ export class CharacterTestScene {
 
     this.controls = new OrbitControls(this.camera, this.renderer.domElement);
     this.controls.enableDamping = true;
+    this.controls.target.set(0, 90, 0);
     this.controls.addEventListener('start', () => { this.userIsInteracting = true; });
     this.controls.addEventListener('end', () => { this.userIsInteracting = false; });
 
-    this.ambientLight = new THREE.AmbientLight(0xffffff, 0.7);
-    this.directionalLight = new THREE.DirectionalLight(0xffffff, 1.5);
-    this.directionalLight.position.set(5, 10, 7.5);
-    this.scene.add(this.ambientLight, this.directionalLight);
+    this.ambientLight = new THREE.AmbientLight(0xcde3ff, 0.42);
+    this.hemisphereLight = new THREE.HemisphereLight(0x89d7ff, 0x111a27, 0.52);
+    this.directionalLight = new THREE.DirectionalLight(0xffffff, 1.7);
+    this.directionalLight.position.set(180, 260, 140);
+    this.directionalLight.castShadow = true;
+    this.directionalLight.shadow.mapSize.set(2048, 2048);
+    this.directionalLight.shadow.radius = 3;
+    this.directionalLight.shadow.bias = -0.0004;
+    this.directionalLight.shadow.camera.near = 10;
+    this.directionalLight.shadow.camera.far = 1400;
+    this.directionalLight.shadow.camera.left = -360;
+    this.directionalLight.shadow.camera.right = 360;
+    this.directionalLight.shadow.camera.top = 360;
+    this.directionalLight.shadow.camera.bottom = -360;
 
-    this.gridHelper = new THREE.GridHelper(500, 10);
+    this.rimLight = new THREE.DirectionalLight(0x74c9ff, 0.72);
+    this.rimLight.position.set(-160, 130, -210);
+    this.rimLight.castShadow = false;
+    this.scene.add(
+      this.ambientLight,
+      this.hemisphereLight,
+      this.directionalLight,
+      this.rimLight,
+      this.directionalLight.target,
+    );
+
+    this.gridHelper = new THREE.GridHelper(600, 24, 0x3f5b84, 0x1c2f49);
+    const gridMaterial = this.gridHelper.material;
+    if (Array.isArray(gridMaterial)) {
+      gridMaterial.forEach(mat => {
+        mat.transparent = true;
+        mat.opacity = 0.35;
+        mat.depthWrite = false;
+      });
+    } else {
+      gridMaterial.transparent = true;
+      gridMaterial.opacity = 0.35;
+      gridMaterial.depthWrite = false;
+    }
     this.scene.add(this.gridHelper);
   }
 
@@ -373,21 +423,18 @@ export class CharacterTestScene {
 
     this.bgColorInput.addEventListener('input', e => {
       const color = (e.target as HTMLInputElement).value;
-      this.scene.background = new THREE.Color(color);
-      this.containerEl.style.backgroundColor = color;
+      this.setSceneBackground(color);
     });
-    this.bgColorInput.value = '#2b2f36';
-    this.scene.background = new THREE.Color(0x2b2f36);
-    this.containerEl.style.backgroundColor = '#2b2f36';
+    this.setSceneBackground(this.bgColorInput.value || '#0b1322');
 
     this.brightnessSlider.addEventListener('input', e => {
       const value = parseFloat((e.target as HTMLInputElement).value);
       this.brightnessLabel.textContent = `Brightness: ${value.toFixed(2)}×`;
       this.setBrightness(value);
     });
-    this.brightnessSlider.value = '2.0';
-    this.brightnessLabel.textContent = 'Brightness: 2.00×';
-    this.setBrightness(2.0);
+    const initialBrightness = parseFloat(this.brightnessSlider.value) || 2.0;
+    this.brightnessLabel.textContent = `Brightness: ${initialBrightness.toFixed(2)}×`;
+    this.setBrightness(initialBrightness);
 
     this.populateClassSelect();
     this.bindSelectChanges();
@@ -627,6 +674,7 @@ export class CharacterTestScene {
     this.characterRoot = baseGroup.group;
     this.characterRoot.name = 'character_root';
     this.tagMeshes(this.characterRoot, `Base ArmorClass${classToken}`, 'base');
+    this.applySceneMaterialTuning(this.characterRoot);
     this.characterRoot.scale.set(this.characterScale, this.characterScale, this.characterScale);
     if (!shouldReframe) {
       this.characterRoot.position.copy(previousOffset);
@@ -680,6 +728,7 @@ export class CharacterTestScene {
       }
       if (token !== this.buildToken) return;
       this.tagMeshes(part.group, partEntry.label, 'base');
+      this.applySceneMaterialTuning(part.group);
       await this.applyTexturesForGroup(part.group);
       await this.attachBodyPart(part.group);
       if (token !== this.buildToken) return;
@@ -711,6 +760,7 @@ export class CharacterTestScene {
         }
         if (token !== this.buildToken) return;
         this.tagMeshes(part.group, itemLabel, 'equipment');
+        this.applySceneMaterialTuning(part.group);
         await this.applyTexturesForGroup(part.group);
         await this.attachBodyPart(part.group);
       } else {
@@ -721,6 +771,7 @@ export class CharacterTestScene {
         }
         if (token !== this.buildToken) return;
         this.tagMeshes(part.group, itemLabel, 'equipment');
+        this.applySceneMaterialTuning(part.group);
         this.attachToBone(part.group, entry.bone ?? 0);
         await this.applyTexturesForGroup(part.group);
       }
@@ -742,6 +793,7 @@ export class CharacterTestScene {
     }
     this.buildBlendingUI();
     this.refreshRenderHelpers();
+    this.updateStageForObject(this.characterRoot);
     this.statusEl.textContent = 'Character ready.';
   }
 
@@ -1388,13 +1440,85 @@ export class CharacterTestScene {
     this.characterScale = scale;
     if (this.characterRoot) {
       this.characterRoot.scale.set(scale, scale, scale);
+      this.updateStageForObject(this.characterRoot);
     }
   }
 
+  private setSceneBackground(hexColor: string) {
+    const color = new THREE.Color(hexColor);
+    this.scene.background = color;
+    if (this.scene.fog) {
+      this.scene.fog.color.copy(color);
+    }
+    if (this.containerEl) {
+      this.containerEl.style.backgroundColor = hexColor;
+    }
+  }
+
+  private applySceneMaterialTuning(root: THREE.Object3D) {
+    root.traverse(obj => {
+      const mesh = obj as THREE.Mesh;
+      if (!mesh.isMesh) return;
+
+      mesh.castShadow = true;
+      mesh.receiveShadow = true;
+
+      const materials = Array.isArray(mesh.material)
+        ? mesh.material
+        : [mesh.material];
+
+      materials.forEach(material => {
+        if (!material) return;
+
+        if (material instanceof THREE.MeshPhongMaterial) {
+          material.shininess = Math.max(material.shininess, 12);
+          material.specular.set(0x2f4869);
+        }
+
+        if ('envMapIntensity' in material) {
+          (material as THREE.MeshStandardMaterial).envMapIntensity = 0.72;
+        }
+
+        material.needsUpdate = true;
+      });
+    });
+  }
+
+  private updateStageForObject(object: THREE.Object3D | null) {
+    if (!object) {
+      if (this.gridHelper) {
+        this.gridHelper.position.y = 0;
+        this.gridHelper.scale.set(1, 1, 1);
+      }
+      return;
+    }
+
+    const box = new THREE.Box3().setFromObject(object);
+    if (!Number.isFinite(box.min.y) || !Number.isFinite(box.max.y)) {
+      return;
+    }
+
+    const size = box.getSize(new THREE.Vector3());
+    const radius = Math.max(120, Math.max(size.x, size.z) * 0.74 + 30);
+    const stageY = box.min.y - 1.2;
+
+    if (this.gridHelper) {
+      const gridScale = Math.max(0.65, Math.min(2.4, radius / 230));
+      this.gridHelper.position.y = stageY;
+      this.gridHelper.scale.set(gridScale, 1, gridScale);
+    }
+
+    this.directionalLight.target.position.set(0, (box.min.y + box.max.y) * 0.5, 0);
+    this.directionalLight.target.updateMatrixWorld();
+  }
+
   private setBrightness(value: number) {
-    this.renderer.toneMappingExposure = value;
-    if (this.ambientLight) this.ambientLight.intensity = 0.7 * value;
-    if (this.directionalLight) this.directionalLight.intensity = 1.5 * value;
+    const safeValue = Math.max(0.1, value);
+    this.renderer.toneMappingExposure = safeValue;
+    if (this.ambientLight) this.ambientLight.intensity = 0.48 * safeValue;
+    if (this.hemisphereLight) this.hemisphereLight.intensity = 0.62 * safeValue;
+    if (this.directionalLight) this.directionalLight.intensity = 1.85 * safeValue;
+    if (this.rimLight) this.rimLight.intensity = 0.82 * safeValue;
   }
 
   private refreshViewport(attempt = 0) {
@@ -1411,6 +1535,7 @@ export class CharacterTestScene {
 
     this.camera.aspect = width / height;
     this.camera.updateProjectionMatrix();
+    this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
     this.renderer.setSize(width, height);
     this.renderer.render(this.scene, this.camera);
   }
@@ -1430,18 +1555,16 @@ export class CharacterTestScene {
 
     this.meshRefs.forEach((mesh, idx) => {
       const row = document.createElement('div');
-      row.style.display = 'flex';
-      row.style.alignItems = 'center';
-      row.style.gap = '0.5rem';
-      row.style.marginBottom = '0.75rem';
+      row.className = 'blend-row';
 
       const label = document.createElement('span');
       const itemLabel = (mesh.userData?.itemLabel as string) || 'Unknown item';
       const meshLabel = mesh.name || `Mesh ${idx}`;
       label.textContent = `${itemLabel} · ${meshLabel}`;
-      label.style.flex = '1';
+      label.className = 'blend-label';
 
       const select = document.createElement('select');
+      select.className = 'animation-dropdown blend-select';
       Object.keys(modes).forEach(k => {
         const opt = document.createElement('option');
         opt.value = k;
@@ -1869,6 +1992,7 @@ export class CharacterTestScene {
 
     // Properly dispose shader materials before clearing
     Disposer.disposeShaderMaterials(this.itemShaderMaterials);
+    this.updateStageForObject(null);
   }
 
   /**
@@ -1919,6 +2043,11 @@ export class CharacterTestScene {
     requestAnimationFrame(this.animate);
     const delta = this.clock.getDelta();
     if (!this.isActive) return;
+
+    const now = performance.now();
+    const lightOrbit = now * 0.00025;
+    this.rimLight.position.x = -160 + Math.sin(lightOrbit) * 18;
+    this.rimLight.position.z = -210 + Math.cos(lightOrbit) * 14;
 
     if (this.characterRoot && this.isAutoRotating && !this.userIsInteracting && !this.isRecordingGif) {
       this.characterRoot.rotation.z += delta * 0.2;

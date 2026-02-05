@@ -5,13 +5,9 @@
 // Maximum file size: 50MB
 const MAX_FILE_SIZE = 50 * 1024 * 1024;
 
-// Known BMD file signatures (magic numbers)
-const BMD_SIGNATURES = [
-  // Standard BMD header
-  new Uint8Array([0x42, 0x4D, 0x44, 0x0C]), // "BMD\x0C"
-  // Encrypted BMD (LEA-256)
-  new Uint8Array([0x0C, 0x01, 0x4D, 0x42]), // "\x0C\x01MB" (little endian)
-];
+// BMD header: "BMD" + version byte
+const BMD_MAGIC = new Uint8Array([0x42, 0x4D, 0x44]); // "BMD"
+const SUPPORTED_BMD_VERSIONS = new Set([0x0A, 0x0C, 0x0F]);
 
 export class FileValidationError extends Error {
   constructor(message: string) {
@@ -54,18 +50,22 @@ export class FileValidator {
     }
 
     const header = new Uint8Array(buffer, 0, 4);
+    const headerHex = Array.from(header)
+      .map(b => b.toString(16).padStart(2, '0'))
+      .join(' ');
 
-    // Check if header matches any known BMD signature
-    const isValid = BMD_SIGNATURES.some(signature => {
-      return signature.every((byte, index) => byte === header[index]);
-    });
-
-    if (!isValid) {
-      const headerHex = Array.from(header)
-        .map(b => b.toString(16).padStart(2, '0'))
-        .join(' ');
+    const hasValidMagic = BMD_MAGIC.every((byte, index) => byte === header[index]);
+    if (!hasValidMagic) {
       throw new FileValidationError(
         `File "${name}" does not appear to be a valid BMD file. Header: ${headerHex}`
+      );
+    }
+
+    const version = header[3];
+    if (!SUPPORTED_BMD_VERSIONS.has(version)) {
+      const versionHex = `0x${version.toString(16).padStart(2, '0')}`;
+      throw new FileValidationError(
+        `File "${name}" has unsupported BMD version ${versionHex}. Supported versions: 0x0A, 0x0C, 0x0F.`
       );
     }
   }

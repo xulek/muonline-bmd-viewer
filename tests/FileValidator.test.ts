@@ -39,7 +39,18 @@ describe('FileValidator', () => {
       expect(() => FileValidator.validateBMDHeader(invalidBuffer, 'test.bmd')).toThrow(/not appear to be a valid BMD/);
     });
 
-    it('should accept valid BMD header (standard)', () => {
+    it('should accept valid BMD header (version 0x0A)', () => {
+      const validBuffer = new ArrayBuffer(4);
+      const view = new Uint8Array(validBuffer);
+      view[0] = 0x42; // 'B'
+      view[1] = 0x4D; // 'M'
+      view[2] = 0x44; // 'D'
+      view[3] = 0x0A;
+
+      expect(() => FileValidator.validateBMDHeader(validBuffer, 'test.bmd')).not.toThrow();
+    });
+
+    it('should accept valid BMD header (version 0x0C)', () => {
       const validBuffer = new ArrayBuffer(4);
       const view = new Uint8Array(validBuffer);
       view[0] = 0x42; // 'B'
@@ -50,13 +61,13 @@ describe('FileValidator', () => {
       expect(() => FileValidator.validateBMDHeader(validBuffer, 'test.bmd')).not.toThrow();
     });
 
-    it('should accept valid BMD header (encrypted)', () => {
+    it('should accept valid BMD header (version 0x0F)', () => {
       const validBuffer = new ArrayBuffer(4);
       const view = new Uint8Array(validBuffer);
-      view[0] = 0x0C;
-      view[1] = 0x01;
-      view[2] = 0x4D; // 'M'
-      view[3] = 0x42; // 'B'
+      view[0] = 0x42; // 'B'
+      view[1] = 0x4D; // 'M'
+      view[2] = 0x44; // 'D'
+      view[3] = 0x0F;
 
       expect(() => FileValidator.validateBMDHeader(validBuffer, 'test.bmd')).not.toThrow();
     });

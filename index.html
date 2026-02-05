@@ -6,21 +6,19 @@
   <link rel="icon" type="image/svg+xml" href="/vite.svg" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>MU Online BMD Viewer</title>
-  <!-- Preload fonts for better performance -->
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link
-    href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap"
+    href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=Oxanium:wght@500;600;700&family=Space+Grotesk:wght@400;500;600;700&display=swap"
     rel="stylesheet">
 </head>
 
 <body>
   <div id="app">
-    <!-- Sidebar -->
     <aside class="sidebar" id="sidebar">
       <div class="sidebar-content">
         <div class="sidebar-header">
-          <h2 class="sidebar-title">🛠️ Controls</h2>
+          <h2 class="sidebar-title">🛠 Controls</h2>
         </div>
 
         <div class="sidebar-tabs" id="sidebar-tabs">
@@ -29,34 +27,29 @@
         </div>
 
         <div id="sidebar-bmd" class="sidebar-view">
-
-          <!-- File Loading -->
           <div class="control-section">
             <h3>Import Assets</h3>
 
             <div class="drop-zone" id="bmd-drop-zone" title="Load Main Model">
               <p>Drop <strong>.bmd</strong> model here</p>
-              <input type="file" id="bmd-file-input" accept=".bmd" style="display: none;" />
+              <input type="file" id="bmd-file-input" accept=".bmd" class="file-input-hidden" />
             </div>
 
             <div class="drop-zone" id="anim-bmd-drop-zone" title="Load External Animations">
               <p>Drop animation <strong>.bmd</strong> (optional)</p>
-              <input type="file" id="anim-bmd-file-input" accept=".bmd" style="display: none;" />
+              <input type="file" id="anim-bmd-file-input" accept=".bmd" class="file-input-hidden" />
             </div>
 
-            <!-- Texture Loading (Initially Hidden) -->
-            <div id="texture-controls" style="display: none; margin-top: 1rem;">
-              <p id="texture-info-text" style="font-size: 0.8rem; color: var(--accent-primary); margin-bottom: 0.5rem;">
-              </p>
+            <div id="texture-controls" class="initially-hidden section-gap">
+              <p id="texture-info-text" class="control-note accent-note"></p>
               <div class="drop-zone" id="texture-drop-zone">
                 <p>Drop textures (.jpg, .tga, .ozj)</p>
                 <input type="file" id="texture-file-input" accept=".jpg,.jpeg,.png,.tga,.ozt,.ozj" multiple
-                  style="display: none;" />
+                  class="file-input-hidden" />
               </div>
             </div>
           </div>
 
-          <!-- Animation Settings -->
           <div class="control-section">
             <h3>Animation Settings</h3>
 
@@ -73,22 +66,18 @@
               <input type="checkbox" id="auto-rotate-checkbox" class="modern-checkbox" checked>
             </div>
 
-            <!-- Frame Lock (Hidden by default) -->
-            <div id="frame-lock-controls"
-              style="display:none; margin-top: 1rem; border-top: var(--border-light); padding-top: 1rem;">
+            <div id="frame-lock-controls" class="section-divider initially-hidden">
               <div class="checkbox-control">
                 <label for="lock-frame-checkbox">Lock specific frame</label>
                 <input type="checkbox" id="lock-frame-checkbox" class="modern-checkbox">
               </div>
-              <div style="display: flex; gap: 0.5rem; align-items: center; margin-top: 0.5rem;">
-                <input type="number" id="lock-frame-input" class="frame-input" value="0" min="0" step="1"
-                  style="width: 70px;">
+              <div class="row-inline row-top-gap">
+                <input type="number" id="lock-frame-input" class="frame-input input-w-sm" value="0" min="0" step="1">
                 <button id="lock-current-btn" class="lock-btn">Set Current</button>
               </div>
             </div>
           </div>
 
-          <!-- Viewport Settings -->
           <div class="control-section">
             <h3>Viewport & Render</h3>
 
@@ -125,43 +114,39 @@
               <input type="checkbox" id="show-normals-checkbox" class="modern-checkbox">
             </div>
 
-            <div style="margin-top: 1rem; padding-top: 1rem; border-top: var(--border-light);">
+            <div class="section-divider">
               <div class="background-control">
                 <label for="bg-color-input">Background</label>
-                <input type="color" id="bg-color-input" value="#0f1115">
+                <input type="color" id="bg-color-input" value="#0b1322">
               </div>
               <div class="brightness-control">
                 <label id="brightness-label" for="brightness-slider">Brightness</label>
-                <input type="range" id="brightness-slider" class="modern-slider" min="0.1" max="2.0" step="0.1"
-                  value="1.0">
+                <input type="range" id="brightness-slider" class="modern-slider" min="0.1" max="4.0" step="0.1"
+                  value="2.0">
               </div>
             </div>
           </div>
 
-          <!-- Mesh Blending -->
-          <div class="control-section" id="blending-controls" style="display: none;">
+          <div class="control-section initially-hidden" id="blending-controls">
             <h3>Mesh Blending</h3>
-            <div id="blending-container" style="display: flex; flex-direction: column; gap: 0.75rem;"></div>
+            <div id="blending-container" class="stack-md"></div>
           </div>
 
-          <!-- Attachment System -->
           <div class="control-section">
             <h3>Attachment</h3>
 
             <div class="drop-zone" id="attach-drop-zone" title="Attach Model to Bone">
               <p>Drop attachment <strong>.bmd</strong></p>
-              <input type="file" id="attach-bmd-input" accept=".bmd" style="display: none;" />
+              <input type="file" id="attach-bmd-input" accept=".bmd" class="file-input-hidden" />
             </div>
 
-            <div id="attach-controls" style="display: none; margin-top: 1rem;">
-              <label for="attach-bone-select"
-                style="display: block; margin-bottom: 0.5rem; font-size: 0.85rem; color: var(--text-muted);">Select
-                Bone</label>
-              <select id="attach-bone-select" class="animation-dropdown" style="width: 100%; margin-bottom: 0.5rem;">
+            <div id="attach-controls" class="initially-hidden section-gap">
+              <label for="attach-bone-select" class="field-label">Select Bone</label>
+              <select id="attach-bone-select" class="animation-dropdown full-width mb-sm">
                 <option value="">-- Select Bone --</option>
               </select>
 
-              <div class="slider-control" style="margin-top: 0.75rem;">
+              <div class="slider-control space-top-sm">
                 <div class="slider-label">
                   <span>Bone Navigation</span>
                   <span class="slider-value" id="attach-bone-value">0</span>
@@ -169,13 +154,10 @@
                 <input type="range" id="attach-bone-slider" class="modern-slider" min="0" max="0" step="1" value="0">
               </div>
 
-              <button id="undo-attach-btn" class="modern-btn"
-                style="width: 100%; margin-top: 1rem; background: transparent; border: 1px solid var(--accent-danger); color: var(--accent-danger);">Remove
-                Attachment</button>
+              <button id="undo-attach-btn" class="modern-btn btn-danger space-top-md">Remove Attachment</button>
             </div>
           </div>
 
-          <!-- Diagnostics -->
           <div class="control-section" id="diagnostics-panel">
             <h3>Stats</h3>
             <p>FPS: <span id="diag-fps">0</span></p>
@@ -186,48 +168,45 @@
             <p>Frame: <span id="diag-current-frame">0</span></p>
           </div>
 
-          <!-- Export -->
           <div class="control-section" id="export-controls">
             <h3>Export</h3>
-            <div style="display: flex; flex-direction: column; gap: 0.75rem;">
-              <div style="display:flex; gap:0.5rem; align-items:center; flex-wrap:wrap;">
+            <div class="stack-md">
+              <div class="row-inline">
                 <label for="gif-width-input">GIF</label>
-                <input id="gif-width-input" type="number" class="frame-input" value="800" min="16" max="1024" step="16"
-                  style="width:80px;">
+                <input id="gif-width-input" type="number" class="frame-input input-w-md" value="800" min="16" max="1024"
+                  step="16">
                 <span>×</span>
-                <input id="gif-height-input" type="number" class="frame-input" value="600" min="16" max="1024" step="16"
-                  style="width:80px;">
+                <input id="gif-height-input" type="number" class="frame-input input-w-md" value="600" min="16" max="1024"
+                  step="16">
                 <span>px</span>
               </div>
-              <div style="display:flex; gap:0.5rem; align-items:center; flex-wrap:wrap;">
+              <div class="row-inline">
                 <label for="gif-delay-input">Delay</label>
-                <input id="gif-delay-input" type="number" class="frame-input" value="" placeholder="auto" min="10"
-                  max="500" step="10" style="width:90px;">
+                <input id="gif-delay-input" type="number" class="frame-input input-w-lg" value="" placeholder="auto" min="10"
+                  max="500" step="10">
                 <span>ms (blank = auto)</span>
               </div>
-              <div style="display:flex; gap:0.5rem; align-items:center; flex-wrap:wrap;">
+              <div class="row-inline">
                 <label for="gif-frame-multiplier-input">Smoothness</label>
-                <input id="gif-frame-multiplier-input" type="number" class="frame-input" value="1" min="1" max="8"
-                  step="1" style="width:90px;">
+                <input id="gif-frame-multiplier-input" type="number" class="frame-input input-w-lg" value="1" min="1"
+                  max="8" step="1">
                 <span>× frames</span>
               </div>
-              <button id="export-gif-btn" class="modern-btn">Export GIF</button>
-              <div style="display: flex; flex-direction: column; gap: 0.5rem;">
-                <button id="export-glb-btn" class="modern-btn">Export GLB</button>
+              <button id="export-gif-btn" class="modern-btn btn-primary">Export GIF</button>
+              <div class="stack-sm">
+                <button id="export-glb-btn" class="modern-btn btn-primary">Export GLB</button>
                 <button id="export-textures-btn" disabled class="modern-btn">Export Textures (PNG)</button>
               </div>
             </div>
           </div>
 
-          <!-- Hidden Compatibility Elements (Do not remove) -->
-          <div style="display: none;">
+          <div class="file-input-hidden">
             <label id="speed-label" for="speed-slider">Speed: 1.00x</label>
             <label id="scale-label" for="scale-slider">Scale: 1.00x</label>
             <div class="auto-rotate-control"></div>
             <div class="speed-control"></div>
             <div class="scale-control"></div>
           </div>
-
         </div>
 
         <div id="sidebar-character" class="sidebar-view hidden">
@@ -235,20 +214,15 @@
             <h3>Game Data</h3>
             <div class="drop-zone" id="data-drop-zone" title="Load Data folder">
               <p>Drop <strong>Data</strong> folder here</p>
-              <input type="file" id="data-folder-input" webkitdirectory directory multiple style="display: none;" />
+              <input type="file" id="data-folder-input" webkitdirectory directory multiple class="file-input-hidden" />
             </div>
-            <p id="data-folder-status" style="font-size: 0.8rem; color: var(--text-muted); margin: 0;">
-              No Data loaded.
-            </p>
+            <p id="data-folder-status" class="control-note">No Data loaded.</p>
           </div>
 
           <div class="control-section">
             <h3>Character</h3>
-            <label for="character-class-select"
-              style="display: block; margin-bottom: 0.5rem; font-size: 0.85rem; color: var(--text-muted);">
-              Class
-            </label>
-            <select id="character-class-select" class="animation-dropdown" style="width: 100%; margin-bottom: 0.75rem;">
+            <label for="character-class-select" class="field-label">Class</label>
+            <select id="character-class-select" class="animation-dropdown full-width mb-md">
               <option value="">Loading...</option>
             </select>
 
@@ -260,69 +234,43 @@
 
           <div class="control-section">
             <h3>Equipment</h3>
-            <label for="character-helm-select"
-              style="display: block; margin-bottom: 0.35rem; font-size: 0.8rem; color: var(--text-muted);">
-              Helm
-            </label>
-            <select id="character-helm-select" class="animation-dropdown" style="width: 100%; margin-bottom: 0.6rem;">
+            <label for="character-helm-select" class="field-label">Helm</label>
+            <select id="character-helm-select" class="animation-dropdown full-width mb-sm">
               <option value="">None</option>
             </select>
 
-            <label for="character-armor-select"
-              style="display: block; margin-bottom: 0.35rem; font-size: 0.8rem; color: var(--text-muted);">
-              Armor
-            </label>
-            <select id="character-armor-select" class="animation-dropdown" style="width: 100%; margin-bottom: 0.6rem;">
+            <label for="character-armor-select" class="field-label">Armor</label>
+            <select id="character-armor-select" class="animation-dropdown full-width mb-sm">
               <option value="">None</option>
             </select>
 
-            <label for="character-pants-select"
-              style="display: block; margin-bottom: 0.35rem; font-size: 0.8rem; color: var(--text-muted);">
-              Pants
-            </label>
-            <select id="character-pants-select" class="animation-dropdown" style="width: 100%; margin-bottom: 0.6rem;">
+            <label for="character-pants-select" class="field-label">Pants</label>
+            <select id="character-pants-select" class="animation-dropdown full-width mb-sm">
               <option value="">None</option>
             </select>
 
-            <label for="character-gloves-select"
-              style="display: block; margin-bottom: 0.35rem; font-size: 0.8rem; color: var(--text-muted);">
-              Gloves
-            </label>
-            <select id="character-gloves-select" class="animation-dropdown" style="width: 100%; margin-bottom: 0.6rem;">
+            <label for="character-gloves-select" class="field-label">Gloves</label>
+            <select id="character-gloves-select" class="animation-dropdown full-width mb-sm">
               <option value="">None</option>
             </select>
 
-            <label for="character-boots-select"
-              style="display: block; margin-bottom: 0.35rem; font-size: 0.8rem; color: var(--text-muted);">
-              Boots
-            </label>
-            <select id="character-boots-select" class="animation-dropdown" style="width: 100%; margin-bottom: 0.6rem;">
+            <label for="character-boots-select" class="field-label">Boots</label>
+            <select id="character-boots-select" class="animation-dropdown full-width mb-sm">
               <option value="">None</option>
             </select>
 
-            <label for="character-left-weapon-select"
-              style="display: block; margin-bottom: 0.35rem; font-size: 0.8rem; color: var(--text-muted);">
-              Left Hand
-            </label>
-            <select id="character-left-weapon-select" class="animation-dropdown"
-              style="width: 100%; margin-bottom: 0.6rem;">
+            <label for="character-left-weapon-select" class="field-label">Left Hand</label>
+            <select id="character-left-weapon-select" class="animation-dropdown full-width mb-sm">
               <option value="">None</option>
             </select>
 
-            <label for="character-right-weapon-select"
-              style="display: block; margin-bottom: 0.35rem; font-size: 0.8rem; color: var(--text-muted);">
-              Right Hand
-            </label>
-            <select id="character-right-weapon-select" class="animation-dropdown"
-              style="width: 100%; margin-bottom: 0.6rem;">
+            <label for="character-right-weapon-select" class="field-label">Right Hand</label>
+            <select id="character-right-weapon-select" class="animation-dropdown full-width mb-sm">
               <option value="">None</option>
             </select>
 
-            <label for="character-wing-select"
-              style="display: block; margin-bottom: 0.35rem; font-size: 0.8rem; color: var(--text-muted);">
-              Wings
-            </label>
-            <select id="character-wing-select" class="animation-dropdown" style="width: 100%;">
+            <label for="character-wing-select" class="field-label">Wings</label>
+            <select id="character-wing-select" class="animation-dropdown full-width">
               <option value="">None</option>
             </select>
           </div>
@@ -336,7 +284,7 @@
               </div>
               <input type="range" id="character-item-level" class="modern-slider" min="0" max="15" step="1" value="0">
             </div>
-            <div class="checkbox-control" style="margin-top: 0.5rem;">
+            <div class="checkbox-control space-top-xs">
               <label for="character-item-excellent">Excellent</label>
               <input type="checkbox" id="character-item-excellent" class="modern-checkbox">
             </div>
@@ -344,7 +292,7 @@
               <label for="character-item-ancient">Ancient</label>
               <input type="checkbox" id="character-item-ancient" class="modern-checkbox">
             </div>
-            <div class="slider-control" style="margin-top: 0.75rem;">
+            <div class="slider-control space-top-sm">
               <div class="slider-label">
                 <span>Excellent Intensity</span>
                 <span class="slider-value" id="character-excellent-intensity-value">0.50x</span>
@@ -365,11 +313,8 @@
                 value="0.2">
             </div>
 
-            <label for="character-animation-select"
-              style="display: block; margin-bottom: 0.5rem; font-size: 0.8rem; color: var(--text-muted);">
-              Animation
-            </label>
-            <select id="character-animation-select" class="animation-dropdown" style="width: 100%;">
+            <label for="character-animation-select" class="field-label">Animation</label>
+            <select id="character-animation-select" class="animation-dropdown full-width">
               <option value="">No animations</option>
             </select>
           </div>
@@ -411,63 +356,60 @@
               <input type="checkbox" id="character-show-normals" class="modern-checkbox">
             </div>
 
-            <div style="margin-top: 1rem; padding-top: 1rem; border-top: var(--border-light);">
+            <div class="section-divider">
               <div class="background-control">
                 <label for="character-bg-color">Background</label>
-                <input type="color" id="character-bg-color" value="#2b2f36">
+                <input type="color" id="character-bg-color" value="#0b1322">
               </div>
               <div class="brightness-control">
                 <label id="character-brightness-label" for="character-brightness-slider">Brightness</label>
-                <input type="range" id="character-brightness-slider" class="modern-slider" min="0.1" max="2.0"
+                <input type="range" id="character-brightness-slider" class="modern-slider" min="0.1" max="4.0"
                   step="0.1" value="2.0">
               </div>
             </div>
 
-            <div class="control-section" id="character-blending-controls" style="display: none;">
+            <div class="control-section initially-hidden" id="character-blending-controls">
               <h3>Mesh Blending</h3>
-              <div id="character-blending-container" style="display: flex; flex-direction: column; gap: 0.75rem;"></div>
+              <div id="character-blending-container" class="stack-md"></div>
             </div>
 
             <div class="control-section" id="character-export-controls">
               <h3>Export</h3>
-              <div style="display: flex; flex-direction: column; gap: 0.75rem;">
-                <div style="display:flex; gap:0.5rem; align-items:center; flex-wrap:wrap;">
+              <div class="stack-md">
+                <div class="row-inline">
                   <label for="character-gif-width-input">GIF</label>
-                  <input id="character-gif-width-input" type="number" class="frame-input" value="800" min="16"
-                    max="1024" step="16" style="width:80px;">
+                  <input id="character-gif-width-input" type="number" class="frame-input input-w-md" value="800" min="16"
+                    max="1024" step="16">
                   <span>×</span>
-                  <input id="character-gif-height-input" type="number" class="frame-input" value="600" min="16"
-                    max="1024" step="16" style="width:80px;">
+                  <input id="character-gif-height-input" type="number" class="frame-input input-w-md" value="600" min="16"
+                    max="1024" step="16">
                   <span>px</span>
                 </div>
-                <div style="display:flex; gap:0.5rem; align-items:center; flex-wrap:wrap;">
+                <div class="row-inline">
                   <label for="character-gif-delay-input">Delay</label>
-                  <input id="character-gif-delay-input" type="number" class="frame-input" value="" placeholder="auto"
-                    min="10" max="500" step="10" style="width:90px;">
+                  <input id="character-gif-delay-input" type="number" class="frame-input input-w-lg" value="" placeholder="auto"
+                    min="10" max="500" step="10">
                   <span>ms (blank = auto)</span>
                 </div>
-                <div style="display:flex; gap:0.5rem; align-items:center; flex-wrap:wrap;">
+                <div class="row-inline">
                   <label for="character-gif-frame-multiplier-input">Smoothness</label>
-                  <input id="character-gif-frame-multiplier-input" type="number" class="frame-input" value="1" min="1"
-                    max="8" step="1" style="width:90px;">
+                  <input id="character-gif-frame-multiplier-input" type="number" class="frame-input input-w-lg" value="1" min="1"
+                    max="8" step="1">
                   <span>× frames</span>
                 </div>
-                <button id="character-export-gif-btn" class="modern-btn">Export GIF</button>
+                <button id="character-export-gif-btn" class="modern-btn btn-primary">Export GIF</button>
               </div>
             </div>
           </div>
         </div>
-
       </div>
     </aside>
 
-    <!-- Main Viewport -->
     <main class="main-content view" id="view-bmd">
       <div class="header">
         <h1>MU BMD Viewer</h1>
       </div>
 
-      <!-- Toggle Button -->
       <button class="sidebar-toggle" id="sidebar-toggle" title="Toggle Controls">
         <svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
           <path d="M4 6H20M4 12H20M4 18H20" stroke="currentColor" stroke-width="2" stroke-linecap="round" />
@@ -476,7 +418,6 @@
 
       <div id="canvas-container"></div>
 
-      <!-- Animation Bar -->
       <div id="animations-container"></div>
 
       <div id="status">Ready</div>
@@ -500,7 +441,6 @@
   </div>
 
   <script>
-    // UI Logic (Sidebar toggle & simple interactions)
     const sidebar = document.getElementById('sidebar');
     const sidebarToggles = [
       document.getElementById('sidebar-toggle'),
@@ -513,7 +453,6 @@
       });
     });
 
-    // Tabs: switch between views
     const tabs = document.querySelectorAll('.tab-btn');
     const sidebarViews = {
       bmd: document.getElementById('sidebar-bmd'),
@@ -539,24 +478,24 @@
       });
     });
 
-    // Update slider labels for visual feedback
     const speedSlider = document.getElementById('speed-slider');
     const speedValue = document.getElementById('speed-value');
 
-    speedSlider.addEventListener('input', (e) => {
-      speedValue.textContent = parseFloat(e.target.value).toFixed(2) + 'x';
-    });
+    if (speedSlider && speedValue) {
+      speedSlider.addEventListener('input', (e) => {
+        speedValue.textContent = parseFloat(e.target.value).toFixed(2) + 'x';
+      });
+    }
 
     const scaleSlider = document.getElementById('scale-slider');
     const scaleValue = document.getElementById('scale-value');
 
-    scaleSlider.addEventListener('input', (e) => {
-      scaleValue.textContent = parseFloat(e.target.value).toFixed(2) + 'x';
-    });
+    if (scaleSlider && scaleValue) {
+      scaleSlider.addEventListener('input', (e) => {
+        scaleValue.textContent = parseFloat(e.target.value).toFixed(2) + 'x';
+      });
+    }
 
-    // Drop zone handling is now fully managed in main.ts
-
-    // Animation Button Highlighting (Delegation)
     document.getElementById('animations-container').addEventListener('click', (e) => {
       if (e.target.tagName === 'BUTTON') {
         document.querySelectorAll('#animations-container button').forEach(b => b.classList.remove('active'));
