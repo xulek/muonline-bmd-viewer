@@ -29,7 +29,7 @@ export function buildTextureAtlas(textures: Map<number, THREE.Texture>): Terrain
     for (const [idx, tex] of textures) {
         const col = idx % cols;
         const row = Math.floor(idx / cols);
-        const img = tex.image;
+        const img = tex.image as CanvasImageSource | null;
         if (img) {
             ctx.drawImage(img, col * TILE_SIZE, row * TILE_SIZE, TILE_SIZE, TILE_SIZE);
         }

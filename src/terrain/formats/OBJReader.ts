@@ -15,7 +15,7 @@ export interface OBJData {
 }
 
 export function readOBJ(buffer: ArrayBuffer): OBJData {
-    let u8 = new Uint8Array(buffer);
+    let u8: Uint8Array = new Uint8Array(buffer);
     u8 = decryptFileCryptor(u8);
 
     const view = new DataView(u8.buffer, u8.byteOffset, u8.byteLength);

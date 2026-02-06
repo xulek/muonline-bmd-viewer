@@ -25,7 +25,7 @@ export interface TerrainAttributeData {
 }
 
 export function readATT(buffer: ArrayBuffer): TerrainAttributeData {
-    let u8 = new Uint8Array(buffer);
+    let u8: Uint8Array = new Uint8Array(buffer);
 
     // Detect encryption type
     if (u8.length > 4 && u8[0] === 0x41 && u8[1] === 0x54 && u8[2] === 0x54 && u8[3] === 1) {

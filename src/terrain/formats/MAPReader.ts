@@ -12,7 +12,7 @@ export interface TerrainMappingData {
 }
 
 export function readMAP(buffer: ArrayBuffer): TerrainMappingData {
-    let u8 = new Uint8Array(buffer);
+    let u8: Uint8Array = new Uint8Array(buffer);
 
     // Detect encryption type
     if (u8.length > 4 && u8[0] === 0x4D && u8[1] === 0x41 && u8[2] === 0x50 && u8[3] === 1) {
