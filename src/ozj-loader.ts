@@ -1,28 +1,45 @@
 // src/ozj-loader.ts
-//  Loads OZJ (JPEG in a container) and OZT → dataURL PNG
+// Loads OZJ (JPEG in a container) and OZT (raw BGRA) -> dataURL PNG.
 
-export async function convertOzjToDataUrl(buf: ArrayBuffer): Promise<string> {
+type OzTextureHint = 'ozj' | 'ozt';
+
+export async function convertOzjToDataUrl(buf: ArrayBuffer, hint?: OzTextureHint): Promise<string> {
   const u8   = new Uint8Array(buf);
   const size = u8.length;
 
   /* ── 1️⃣  Search for JPEG marker (SOI = FF D8 FF) ─────────────── */
   let jpgStart = -1;
-  for (let i = 20; i < Math.min(30, size - 2); i++) {
+  for (let i = 16; i < size - 2; i++) {
     if (u8[i] === 0xff && u8[i + 1] === 0xd8 && u8[i + 2] === 0xff) {
       jpgStart = i;
       break;
     }
   }
 
-  if (jpgStart !== -1) {                // ← we have a JPEG ⇒ OZJ
+  if (hint === 'ozj') {
+    if (jpgStart === -1) throw new Error('Invalid OZJ: JPEG marker not found');
+    return ozjToPng(buf, jpgStart);
+  }
+
+  if (hint === 'ozt') {
+    return decodeOzt(buf);
+  }
+
+  if (jpgStart !== -1) {
+    // Auto-detected JPEG payload -> OZJ
     return ozjToPng(buf, jpgStart);
   }
 
   /* ── 2️⃣  Try as OZT (RGBA 32 b) ──────────────────────── */
+  return decodeOzt(buf);
+}
+
+function decodeOzt(buf: ArrayBuffer): string {
   const view = new DataView(buf);
+  const size = view.byteLength;
   if (size < 22) throw new Error('File too small for OZT');
 
-  // FIX: Offset 16 as in C# (HEADER_SIZE = 16)
+  // Offset 16 as in C# OZTReader (HEADER_SIZE = 16).
   const nx    = view.getInt16(16, true);
   const ny    = view.getInt16(18, true);
   const depth = view.getUint8(20);
@@ -38,6 +55,7 @@ export async function convertOzjToDataUrl(buf: ArrayBuffer): Promise<string> {
 
   return oztToPng(buf, nx, ny);
 }
+
 
 /* ----------------------------------------------------------------
  *  OZJ  (JPEG + optional vertical flip)
@@ -56,10 +74,11 @@ async function ozjToPng(buf: ArrayBuffer, jpgStart: number): Promise<string> {
                   { width: img.width, height: img.height });
     const ctx = cvs.getContext('2d')!;
 
-    // if (!isTopDownSort) { 
-    //   ctx.translate(0, img.height);
-    //   ctx.scale(1, -1);
-    // }
+    // Match Client.Data.OZJReader: flip vertically when file is not top-down sorted.
+    if (!isTopDownSort) {
+      ctx.translate(0, img.height);
+      ctx.scale(1, -1);
+    }
 
     ctx.drawImage(img, 0, 0);
     img.close(); // Release resources
@@ -76,17 +95,19 @@ async function ozjToPng(buf: ArrayBuffer, jpgStart: number): Promise<string> {
  *  OZT  (raw RGBA, bottom-up) → PNG
  * -------------------------------------------------------------- */
 function oztToPng(buf: ArrayBuffer, nx: number, ny: number): string {
+  const width = getNearestPowerOfTwo(nx);
+  const height = getNearestPowerOfTwo(ny);
   const src = new Uint8Array(buf);
   let offset = 22;                   // HEADER(16) + nx/ny/depth/u1(6)
 
   const cvs = Object.assign(document.createElement('canvas'),
-    { width: nx, height: ny });
+    { width, height });
   const ctx = cvs.getContext('2d')!;
-  const img = ctx.createImageData(nx, ny);
+  const img = ctx.createImageData(width, height);
   const dst = img.data;                // RGBA for Canvas
 
   for (let y = 0; y < ny; y++) {
-    const rowStart = (ny - 1 - y) * nx * 4;   // bottom-up
+    const rowStart = (ny - 1 - y) * width * 4;   // bottom-up
     for (let x = 0; x < nx; x++) {
       const b = src[offset++];          // 1️⃣ B
       const g = src[offset++];          // 2️⃣ G
@@ -102,4 +123,8 @@ function oztToPng(buf: ArrayBuffer, nx: number, ny: number): string {
   }
   ctx.putImageData(img, 0, 0);
   return cvs.toDataURL('image/png');
+}
+
+function getNearestPowerOfTwo(value: number): number {
+  return 2 ** Math.ceil(Math.log2(value));
 }

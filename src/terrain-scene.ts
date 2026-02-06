@@ -102,6 +102,17 @@ export class TerrainScene {
             }
         });
 
+        // Debug mode toggle: keys 0-4 cycle terrain debug visualization
+        window.addEventListener('keydown', (e) => {
+            if (!this.terrainMesh || !this.isActive) return;
+            const key = parseInt(e.key);
+            if (key >= 0 && key <= 4) {
+                const mat = this.terrainMesh.material as THREE.ShaderMaterial;
+                mat.uniforms.uDebugMode.value = key;
+                console.log(`[TERRAIN] Debug mode: ${key} (0=normal, 1=layer1, 2=layer2, 3=alpha, 4=atlasUV)`);
+            }
+        });
+
         // Objects toggle
         const showObjects = document.getElementById('terrain-show-objects') as HTMLInputElement | null;
         showObjects?.addEventListener('change', () => {
