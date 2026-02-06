@@ -145,6 +145,9 @@ const OBJECT_NAME_ALIASES: Record<string, string[]> = {
     shop01: ['ship01'],
 };
 
+const OBJECT_INSTANCE_CHUNK_WORLD_SIZE = 4096;
+const OBJECT_INSTANCE_CHUNK_THRESHOLD = 64;
+
 export async function loadTerrainObjects(
     objData: OBJData,
     files: Map<string, File>,
@@ -153,6 +156,8 @@ export async function loadTerrainObjects(
 ): Promise<THREE.Group> {
     const group = new THREE.Group();
     group.name = 'terrain_objects';
+    group.matrixAutoUpdate = false;
+    group.updateMatrix();
 
     const bmdLoader = new BMDLoader();
     const textureLoader = new THREE.TextureLoader();
@@ -198,19 +203,25 @@ export async function loadTerrainObjects(
                 await tryApplyTexture(template, texName, files, textureLoader, textureCache, blendCache);
             }
 
-            // Place instances
-            for (const inst of instances) {
-                // Skinned meshes must be cloned with SkeletonUtils to avoid
-                // sharing one skeleton across all instances.
-                const clone = SkeletonUtils.clone(template);
-                clone.position.set(inst.position.x, inst.position.z, TERRAIN_WORLD_SIZE - inst.position.y);
-                // Reference clients apply map-object rotation on top of
-                // model base orientation. Keep template orientation and
-                // multiply by OBJ rotation quaternion.
-                const objQuat = mapObjectAngleToQuaternion(inst.angle);
-                clone.quaternion.copy(objQuat.multiply(baseOrientation));
-                clone.scale.setScalar(inst.scale);
-                group.add(clone);
+            // Place instances. Prefer GPU instancing for static meshes.
+            const instanced = addInstancedStaticObjects(group, template, instances, baseOrientation);
+            if (!instanced) {
+                for (const inst of instances) {
+                    // Skinned meshes must be cloned with SkeletonUtils to avoid
+                    // sharing one skeleton across all instances.
+                    const clone = SkeletonUtils.clone(template);
+                    clone.position.set(inst.position.x, inst.position.z, TERRAIN_WORLD_SIZE - inst.position.y);
+                    // Reference clients apply map-object rotation on top of
+                    // model base orientation. Keep template orientation and
+                    // multiply by OBJ rotation quaternion.
+                    const objQuat = mapObjectAngleToQuaternion(inst.angle);
+                    clone.quaternion.copy(objQuat.multiply(baseOrientation));
+                    clone.scale.setScalar(inst.scale);
+                    clone.updateMatrix();
+                    clone.updateMatrixWorld(true);
+                    clone.matrixAutoUpdate = false;
+                    group.add(clone);
+                }
             }
         } catch (e) {
             console.warn(`Failed to load object type ${type}:`, e);
@@ -335,6 +346,94 @@ const MU_TO_THREE_BASIS = new THREE.Matrix4().set(
 );
 
 const MU_TO_THREE_BASIS_INV = MU_TO_THREE_BASIS.clone().transpose();
+
+function addInstancedStaticObjects(
+    target: THREE.Group,
+    template: THREE.Group,
+    instances: MapObject[],
+    baseOrientation: THREE.Quaternion,
+): boolean {
+    const templateMeshes: THREE.Mesh[] = [];
+    let hasSkinnedMeshes = false;
+    template.traverse(obj => {
+        const mesh = obj as THREE.Mesh;
+        if (!mesh.isMesh) return;
+        templateMeshes.push(mesh);
+        if ((mesh as THREE.SkinnedMesh).isSkinnedMesh) {
+            hasSkinnedMeshes = true;
+        }
+    });
+
+    if (templateMeshes.length === 0 || hasSkinnedMeshes) {
+        return false;
+    }
+
+    template.updateMatrixWorld(true);
+    const templateWorldInverse = new THREE.Matrix4().copy(template.matrixWorld).invert();
+
+    const useChunking = instances.length >= OBJECT_INSTANCE_CHUNK_THRESHOLD;
+    const chunkedObjectMatrices = new Map<string, THREE.Matrix4[]>();
+    const position = new THREE.Vector3();
+    const scale = new THREE.Vector3();
+    for (let i = 0; i < instances.length; i++) {
+        const inst = instances[i];
+        position.set(inst.position.x, inst.position.z, TERRAIN_WORLD_SIZE - inst.position.y);
+        const rotation = mapObjectAngleToQuaternion(inst.angle).multiply(baseOrientation);
+        scale.setScalar(inst.scale);
+        const objectMatrix = new THREE.Matrix4().compose(position, rotation, scale);
+        const chunkKey = useChunking
+            ? getObjectChunkKey(position.x, position.z)
+            : 'all';
+        const chunk = chunkedObjectMatrices.get(chunkKey);
+        if (chunk) {
+            chunk.push(objectMatrix);
+        } else {
+            chunkedObjectMatrices.set(chunkKey, [objectMatrix]);
+        }
+    }
+
+    const meshLocalFromTemplate = new THREE.Matrix4();
+    const finalMatrix = new THREE.Matrix4();
+    for (const srcMesh of templateMeshes) {
+        meshLocalFromTemplate
+            .copy(templateWorldInverse)
+            .multiply(srcMesh.matrixWorld);
+
+        for (const [chunkKey, objectMatrices] of chunkedObjectMatrices) {
+            const instancedMesh = new THREE.InstancedMesh(
+                srcMesh.geometry,
+                srcMesh.material,
+                objectMatrices.length,
+            );
+            const baseName = srcMesh.name || 'terrain_instanced_mesh';
+            instancedMesh.name = `${baseName}_${chunkKey}`;
+            instancedMesh.castShadow = srcMesh.castShadow;
+            instancedMesh.receiveShadow = srcMesh.receiveShadow;
+            instancedMesh.renderOrder = srcMesh.renderOrder;
+            instancedMesh.instanceMatrix.setUsage(THREE.StaticDrawUsage);
+            instancedMesh.matrixAutoUpdate = false;
+
+            for (let i = 0; i < objectMatrices.length; i++) {
+                finalMatrix.multiplyMatrices(objectMatrices[i], meshLocalFromTemplate);
+                instancedMesh.setMatrixAt(i, finalMatrix);
+            }
+
+            instancedMesh.instanceMatrix.needsUpdate = true;
+            instancedMesh.computeBoundingBox();
+            instancedMesh.computeBoundingSphere();
+            instancedMesh.updateMatrix();
+            target.add(instancedMesh);
+        }
+    }
+
+    return true;
+}
+
+function getObjectChunkKey(worldX: number, worldZ: number): string {
+    const chunkX = Math.floor(worldX / OBJECT_INSTANCE_CHUNK_WORLD_SIZE);
+    const chunkZ = Math.floor(worldZ / OBJECT_INSTANCE_CHUNK_WORLD_SIZE);
+    return `${chunkX}:${chunkZ}`;
+}
 
 async function tryApplyTexture(
     group: THREE.Group,

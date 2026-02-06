@@ -32,50 +32,43 @@ export class IDEACipher {
         const view = new DataView(src.buffer, src.byteOffset + srcOff, 8);
         const K = this.decryptKeys;
 
-        // Read 4 x 16-bit subblocks in big-endian
-        let X1 = view.getUint16(0, false);
-        let X2 = view.getUint16(2, false);
-        let X3 = view.getUint16(4, false);
-        let X4 = view.getUint16(6, false);
+        // Read 4 x 16-bit subblocks in big-endian.
+        // Naming/order follows BouncyCastle IdeaEngine (x0..x3).
+        let x0 = view.getUint16(0, false);
+        let x1 = view.getUint16(2, false);
+        let x2 = view.getUint16(4, false);
+        let x3 = view.getUint16(6, false);
 
-        let ki = 0;
+        let p = 0;
 
         for (let round = 0; round < IDEACipher.ROUNDS; round++) {
-            // Steps 1-4: Apply round subkeys
-            X1 = mulMod(X1, K[ki++]);
-            X2 = addMod(X2, K[ki++]);
-            X3 = addMod(X3, K[ki++]);
-            X4 = mulMod(X4, K[ki++]);
+            x0 = mulMod(x0, K[p++]);
+            x1 = addMod(x1, K[p++]);
+            x2 = addMod(x2, K[p++]);
+            x3 = mulMod(x3, K[p++]);
 
-            // Steps 5-6: XOR pairs
-            let t0 = X1 ^ X3;
-            let t1 = X2 ^ X4;
+            const t0 = x1;
+            const t1 = x2;
 
-            // Steps 7-10: MA (Multiplication-Addition) structure
-            t0 = mulMod(t0, K[ki++]);
-            t1 = addMod(t0, t1);
-            t1 = mulMod(t1, K[ki++]);
-            t0 = addMod(t0, t1);
+            x2 = x2 ^ x0;
+            x1 = x1 ^ x3;
 
-            // Steps 11-14: XOR results back, with implicit X2/X3 swap
-            X1 = X1 ^ t1;
-            X3 = X3 ^ t1;
-            const tmp = X2 ^ t0;
-            X2 = X3 ^ t0;
-            X3 = tmp;
-            X4 = X4 ^ t0;
+            x2 = mulMod(x2, K[p++]);
+            x1 = addMod(x1, x2);
+            x1 = mulMod(x1, K[p++]);
+            x2 = addMod(x2, x1);
+
+            x0 = x0 ^ x1;
+            x3 = x3 ^ x2;
+            x1 = x1 ^ t1;
+            x2 = x2 ^ t0;
         }
 
-        // Undo the last swap (X2 and X3 should not be swapped after the final round)
-        const tmp = X2;
-        X2 = X3;
-        X3 = tmp;
-
-        // Output transformation
-        X1 = mulMod(X1, K[ki++]);
-        X2 = addMod(X2, K[ki++]);
-        X3 = addMod(X3, K[ki++]);
-        X4 = mulMod(X4, K[ki++]);
+        // Output transform.
+        const X1 = mulMod(x0, K[p++]);
+        const X2 = addMod(x2, K[p++]);
+        const X3 = addMod(x1, K[p++]);
+        const X4 = mulMod(x3, K[p++]);
 
         // Write 4 x 16-bit subblocks in big-endian
         const out = new DataView(dst.buffer, dst.byteOffset + dstOff, 8);
@@ -113,7 +106,7 @@ function expandKey(key: Uint8Array): Uint16Array {
         if ((i & 7) === 6) {
             Z[i] = ((Z[i - 7] << 9) | (Z[i - 14] >>> 7)) & 0xFFFF;
         } else if ((i & 7) === 7) {
-            Z[i] = ((Z[i - 7] << 9) | (Z[i - 14] >>> 7)) & 0xFFFF;
+            Z[i] = ((Z[i - 15] << 9) | (Z[i - 14] >>> 7)) & 0xFFFF;
         } else {
             Z[i] = ((Z[i - 7] << 9) | (Z[i - 6] >>> 7)) & 0xFFFF;
         }
@@ -132,55 +125,50 @@ function expandKey(key: Uint8Array): Uint16Array {
  */
 function invertKeys(enc: Uint16Array): Uint16Array {
     const dec = new Uint16Array(52);
+    let p = 0;
+    let q = 52;
 
-    // We fill dec[] from the end backward. The encryption subkeys are read
-    // from the beginning forward.
-    //
-    // Encryption layout:
-    //   enc[0..5]   = round 1 keys: K1(mul), K2(add), K3(add), K4(mul), K5(mul-MA), K6(mul-MA)
-    //   enc[6..11]  = round 2 keys
-    //   ...
-    //   enc[42..47] = round 8 keys
-    //   enc[48..51] = output transform: K49(mul), K50(add), K51(add), K52(mul)
-    //
-    // Decryption layout (same structure, fed into same cipher core):
-    //   dec[0..5]   = dec round 1
-    //   ...
-    //   dec[42..47] = dec round 8
-    //   dec[48..51] = dec output transform
+    // Inverse of first encryption round keys goes to decryption output transform (written backward).
+    let t1 = mulInverse(enc[p++]);
+    let t2 = addInverse(enc[p++]);
+    let t3 = addInverse(enc[p++]);
+    let t4 = mulInverse(enc[p++]);
+    dec[--q] = t4;
+    dec[--q] = t3;
+    dec[--q] = t2;
+    dec[--q] = t1;
 
-    let ei = 0; // encryption key read index
-    let di = 48; // decryption key write index (start at output transform)
+    // Middle 7 rounds.
+    for (let r = 1; r < 8; r++) {
+        t1 = enc[p++];
+        t2 = enc[p++];
+        dec[--q] = t2;
+        dec[--q] = t1;
 
-    // Decryption output transform <- inverse of encryption round 1 first 4 keys
-    dec[di + 0] = mulInverse(enc[ei++]); // inv(K1)
-    dec[di + 1] = addInverse(enc[ei++]); // -K2
-    dec[di + 2] = addInverse(enc[ei++]); // -K3
-    dec[di + 3] = mulInverse(enc[ei++]); // inv(K4)
-
-    // Process 8 rounds in reverse
-    for (let r = 7; r >= 0; r--) {
-        di = r * 6;
-
-        // MA subkeys (positions 4,5) come directly from encryption round
-        dec[di + 4] = enc[ei++]; // K5 of current enc round
-        dec[di + 5] = enc[ei++]; // K6 of current enc round
-
-        // Round subkeys (positions 0-3): inverse of next enc round's first 4 keys
-        dec[di + 0] = mulInverse(enc[ei++]); // inv(K1 of next enc round)
-
-        if (r === 0) {
-            // First decryption round (last to be written): no swap of add keys
-            dec[di + 1] = addInverse(enc[ei++]); // -K2
-            dec[di + 2] = addInverse(enc[ei++]); // -K3
-        } else {
-            // All other decryption rounds: swap the two addition keys
-            dec[di + 2] = addInverse(enc[ei++]); // -K2 goes to position 2 (swapped)
-            dec[di + 1] = addInverse(enc[ei++]); // -K3 goes to position 1 (swapped)
-        }
-
-        dec[di + 3] = mulInverse(enc[ei++]); // inv(K4 of next enc round)
+        t1 = mulInverse(enc[p++]);
+        t2 = addInverse(enc[p++]);
+        t3 = addInverse(enc[p++]);
+        t4 = mulInverse(enc[p++]);
+        dec[--q] = t4;
+        dec[--q] = t2;
+        dec[--q] = t3;
+        dec[--q] = t1;
     }
+
+    // Final pair + input transform inverse.
+    t1 = enc[p++];
+    t2 = enc[p++];
+    dec[--q] = t2;
+    dec[--q] = t1;
+
+    t1 = mulInverse(enc[p++]);
+    t2 = addInverse(enc[p++]);
+    t3 = addInverse(enc[p++]);
+    t4 = mulInverse(enc[p++]);
+    dec[--q] = t4;
+    dec[--q] = t3;
+    dec[--q] = t2;
+    dec[--q] = t1;
 
     return dec;
 }

@@ -15,6 +15,16 @@ import {
 
 const TERRAIN_BASE_AMBIENT_INTENSITY = 0.6;
 const TERRAIN_BASE_SUN_INTENSITY = 1.0;
+const TERRAIN_MAX_PIXEL_RATIO = 1.5;
+const TERRAIN_BRIGHTNESS_DEFAULT = 1.5;
+const TERRAIN_OBJECT_DRAW_DISTANCE_DEFAULT = 12000;
+const TERRAIN_OBJECT_CULL_INTERVAL_MS = 120;
+const TERRAIN_CAMERA_MOVE_SPEED = 7000;
+const TERRAIN_CAMERA_SPRINT_MULTIPLIER = 2.2;
+const TERRAIN_MAX_DELTA_SECONDS = 0.1;
+
+type MovementKeyCode = 'KeyW' | 'KeyA' | 'KeyS' | 'KeyD' | 'ShiftLeft' | 'ShiftRight';
+const MOVEMENT_KEYS: readonly MovementKeyCode[] = ['KeyW', 'KeyA', 'KeyS', 'KeyD', 'ShiftLeft', 'ShiftRight'];
 
 export class TerrainScene {
     private scene!: THREE.Scene;
@@ -25,6 +35,21 @@ export class TerrainScene {
     private isActive = false;
     private ambientLight: THREE.AmbientLight | null = null;
     private sunLight: THREE.DirectionalLight | null = null;
+    private objectDrawDistance = TERRAIN_OBJECT_DRAW_DISTANCE_DEFAULT;
+    private objectCullLastUpdateMs = 0;
+    private readonly tempCullCenter = new THREE.Vector3();
+    private readonly tempCullScale = new THREE.Vector3();
+    private readonly movementKeys: Record<MovementKeyCode, boolean> = {
+        KeyW: false,
+        KeyA: false,
+        KeyS: false,
+        KeyD: false,
+        ShiftLeft: false,
+        ShiftRight: false,
+    };
+    private readonly tempMoveForward = new THREE.Vector3();
+    private readonly tempMoveRight = new THREE.Vector3();
+    private readonly tempMoveDelta = new THREE.Vector3();
 
     private terrainMesh: THREE.Mesh | null = null;
     private objectsGroup: THREE.Group | null = null;
@@ -43,7 +68,9 @@ export class TerrainScene {
 
     setActive(active: boolean) {
         this.isActive = active;
+        this.resetMovementKeys();
         if (active) {
+            this.clock.getDelta();
             window.dispatchEvent(new Event('resize'));
         }
     }
@@ -60,8 +87,11 @@ export class TerrainScene {
         this.camera = new THREE.PerspectiveCamera(60, container.clientWidth / container.clientHeight, 10, 100000);
         this.camera.position.set(worldCenter, 5000, worldCenter + 5000);
 
-        this.renderer = new THREE.WebGLRenderer({ antialias: true });
-        this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+        this.renderer = new THREE.WebGLRenderer({
+            antialias: false,
+            powerPreference: 'high-performance',
+        });
+        this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, TERRAIN_MAX_PIXEL_RATIO));
         this.renderer.setSize(container.clientWidth, container.clientHeight);
         this.renderer.outputColorSpace = THREE.SRGBColorSpace;
         this.renderer.toneMapping = THREE.ACESFilmicToneMapping;
@@ -152,6 +182,9 @@ export class TerrainScene {
         showObjects?.addEventListener('change', () => {
             if (this.objectsGroup) {
                 this.objectsGroup.visible = showObjects.checked;
+                if (showObjects.checked) {
+                    this.updateObjectDistanceCulling(true);
+                }
             }
         });
 
@@ -164,10 +197,30 @@ export class TerrainScene {
                 brightnessLabel.textContent = `Brightness: ${value.toFixed(2)}×`;
                 this.setBrightness(value);
             });
-            const initialBrightness = parseFloat(brightnessSlider.value) || 2.0;
+            const initialBrightness = parseFloat(brightnessSlider.value) || TERRAIN_BRIGHTNESS_DEFAULT;
             brightnessLabel.textContent = `Brightness: ${initialBrightness.toFixed(2)}×`;
             this.setBrightness(initialBrightness);
         }
+
+        // Object draw distance
+        const objectDistanceSlider = document.getElementById('terrain-object-distance-slider') as HTMLInputElement | null;
+        const objectDistanceLabel = document.getElementById('terrain-object-distance-label');
+        if (objectDistanceSlider && objectDistanceLabel) {
+            objectDistanceSlider.addEventListener('input', (e) => {
+                const value = parseFloat((e.target as HTMLInputElement).value);
+                this.objectDrawDistance = Math.max(500, value);
+                objectDistanceLabel.textContent = `Object Distance: ${Math.round(this.objectDrawDistance)}`;
+                this.updateObjectDistanceCulling(true);
+            });
+            const initialDistance = parseFloat(objectDistanceSlider.value) || TERRAIN_OBJECT_DRAW_DISTANCE_DEFAULT;
+            this.objectDrawDistance = Math.max(500, initialDistance);
+            objectDistanceLabel.textContent = `Object Distance: ${Math.round(this.objectDrawDistance)}`;
+        }
+
+        // Keyboard movement (WSAD + Shift sprint)
+        window.addEventListener('keydown', (e) => this.handleMovementKey(e, true));
+        window.addEventListener('keyup', (e) => this.handleMovementKey(e, false));
+        window.addEventListener('blur', () => this.resetMovementKeys());
     }
 
     /** Electron: open native directory dialog and load */
@@ -272,6 +325,7 @@ export class TerrainScene {
     private async loadWorld(worldNumber: number) {
         const status = document.getElementById('terrain-status');
         if (status) status.textContent = `Loading World ${worldNumber}...`;
+        this.updateStats(0, 0);
 
         // Set the select to the current world
         const select = document.getElementById('terrain-world-select') as HTMLSelectElement | null;
@@ -298,6 +352,7 @@ export class TerrainScene {
 
         if (files.size === 0) {
             if (status) status.textContent = `No files found for World ${worldNumber}.`;
+            this.updateStats(0, 0);
             return;
         }
 
@@ -316,6 +371,7 @@ export class TerrainScene {
 
             this.terrainMesh = result.mesh;
             this.scene.add(this.terrainMesh);
+            this.updateStats(this.getTerrainTileCount(result.mesh), result.objectsData?.objects.length ?? 0);
 
             // Center camera
             const worldCenter = (TERRAIN_SIZE * TERRAIN_SCALE) / 2;
@@ -340,6 +396,9 @@ export class TerrainScene {
                 const showObjects = document.getElementById('terrain-show-objects') as HTMLInputElement | null;
                 if (showObjects && this.objectsGroup) {
                     this.objectsGroup.visible = showObjects.checked;
+                    if (showObjects.checked) {
+                        this.updateObjectDistanceCulling(true);
+                    }
                 }
             }
 
@@ -350,6 +409,7 @@ export class TerrainScene {
         } catch (e) {
             console.error('Terrain loading error:', e);
             if (status) status.textContent = `Error: ${(e as Error).message}`;
+            this.updateStats(0, 0);
         }
     }
 
@@ -384,6 +444,67 @@ export class TerrainScene {
         return files;
     }
 
+    private getTerrainTileCount(mesh: THREE.Mesh): number {
+        const geometry = mesh.geometry as THREE.BufferGeometry;
+        const indexCount = geometry.getIndex()?.count ?? 0;
+        if (indexCount > 0) {
+            return Math.floor(indexCount / 6);
+        }
+        const positionCount = geometry.getAttribute('position')?.count ?? 0;
+        return Math.floor(positionCount / 4);
+    }
+
+    private updateStats(tileCount: number, objectCount: number) {
+        const tileEl = document.getElementById('terrain-tile-count');
+        const objectEl = document.getElementById('terrain-object-count');
+        if (tileEl) tileEl.textContent = Math.max(0, tileCount).toLocaleString();
+        if (objectEl) objectEl.textContent = Math.max(0, objectCount).toLocaleString();
+    }
+
+    private updateObjectDistanceCulling(force = false) {
+        if (!this.objectsGroup || !this.objectsGroup.visible) return;
+
+        const now = performance.now();
+        if (!force && now - this.objectCullLastUpdateMs < TERRAIN_OBJECT_CULL_INTERVAL_MS) {
+            return;
+        }
+
+        if (force) {
+            this.objectsGroup.updateMatrixWorld(true);
+        }
+
+        const maxDistance = this.objectDrawDistance;
+        const cameraPos = this.camera.position;
+        for (const child of this.objectsGroup.children) {
+            child.visible = this.isWithinObjectDistance(child, cameraPos, maxDistance);
+        }
+
+        this.objectCullLastUpdateMs = now;
+    }
+
+    private isWithinObjectDistance(object: THREE.Object3D, cameraPos: THREE.Vector3, maxDistance: number): boolean {
+        const mesh = object as THREE.Mesh;
+        const geometry = mesh.geometry as THREE.BufferGeometry | undefined;
+
+        if (geometry) {
+            if (!geometry.boundingSphere) {
+                geometry.computeBoundingSphere();
+            }
+            const sphere = geometry.boundingSphere;
+            if (sphere) {
+                this.tempCullCenter.copy(sphere.center).applyMatrix4(object.matrixWorld);
+                this.tempCullScale.setFromMatrixScale(object.matrixWorld);
+                const radiusScale = Math.max(this.tempCullScale.x, this.tempCullScale.y, this.tempCullScale.z);
+                const radius = sphere.radius * radiusScale;
+                const maxRange = maxDistance + radius;
+                return this.tempCullCenter.distanceToSquared(cameraPos) <= maxRange * maxRange;
+            }
+        }
+
+        object.getWorldPosition(this.tempCullCenter);
+        return this.tempCullCenter.distanceToSquared(cameraPos) <= maxDistance * maxDistance;
+    }
+
     private setBrightness(value: number) {
         const safeValue = Math.max(0.1, value);
         this.renderer.toneMappingExposure = safeValue;
@@ -391,11 +512,73 @@ export class TerrainScene {
         if (this.sunLight) this.sunLight.intensity = TERRAIN_BASE_SUN_INTENSITY * safeValue;
     }
 
+    private handleMovementKey(event: KeyboardEvent, isDown: boolean) {
+        if (!this.isActive) return;
+        const code = event.code as MovementKeyCode;
+        if (!MOVEMENT_KEYS.includes(code)) return;
+        if (event.ctrlKey || event.metaKey || event.altKey) return;
+
+        if (isDown && this.isTypingIntoUI(event.target)) {
+            return;
+        }
+
+        this.movementKeys[code] = isDown;
+        event.preventDefault();
+    }
+
+    private isTypingIntoUI(target: EventTarget | null): boolean {
+        if (!(target instanceof HTMLElement)) return false;
+        const tagName = target.tagName.toLowerCase();
+        return (
+            tagName === 'input' ||
+            tagName === 'textarea' ||
+            tagName === 'select' ||
+            target.isContentEditable
+        );
+    }
+
+    private resetMovementKeys() {
+        this.movementKeys.KeyW = false;
+        this.movementKeys.KeyA = false;
+        this.movementKeys.KeyS = false;
+        this.movementKeys.KeyD = false;
+        this.movementKeys.ShiftLeft = false;
+        this.movementKeys.ShiftRight = false;
+    }
+
+    private updateKeyboardMovement(deltaSeconds: number) {
+        const forwardInput = (this.movementKeys.KeyW ? 1 : 0) + (this.movementKeys.KeyS ? -1 : 0);
+        const rightInput = (this.movementKeys.KeyA ? 1 : 0) + (this.movementKeys.KeyD ? -1 : 0);
+        if (forwardInput === 0 && rightInput === 0) return;
+
+        this.camera.getWorldDirection(this.tempMoveForward);
+        this.tempMoveForward.y = 0;
+        if (this.tempMoveForward.lengthSq() < 1e-8) return;
+        this.tempMoveForward.normalize();
+
+        this.tempMoveRight.set(this.tempMoveForward.z, 0, -this.tempMoveForward.x).normalize();
+        this.tempMoveDelta.set(0, 0, 0);
+        this.tempMoveDelta.addScaledVector(this.tempMoveForward, forwardInput);
+        this.tempMoveDelta.addScaledVector(this.tempMoveRight, rightInput);
+        if (this.tempMoveDelta.lengthSq() < 1e-8) return;
+        this.tempMoveDelta.normalize();
+
+        const sprint = this.movementKeys.ShiftLeft || this.movementKeys.ShiftRight;
+        const speed = TERRAIN_CAMERA_MOVE_SPEED * (sprint ? TERRAIN_CAMERA_SPRINT_MULTIPLIER : 1);
+        this.tempMoveDelta.multiplyScalar(speed * deltaSeconds);
+
+        this.camera.position.add(this.tempMoveDelta);
+        this.controls.target.add(this.tempMoveDelta);
+    }
+
     private animate = () => {
         requestAnimationFrame(this.animate);
         if (!this.isActive) return;
 
+        const delta = Math.min(this.clock.getDelta(), TERRAIN_MAX_DELTA_SECONDS);
+        this.updateKeyboardMovement(delta);
         this.controls.update();
+        this.updateObjectDistanceCulling();
         this.renderer.render(this.scene, this.camera);
     };
 }

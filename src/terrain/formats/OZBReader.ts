@@ -26,7 +26,8 @@ export function readOZB(buffer: ArrayBuffer): OZBData {
     const height = view.getInt32(offset, true); offset += 4;
     const planes = view.getInt16(offset, true); offset += 2;
     const bitCount = view.getInt16(offset, true); offset += 2;
-    offset += 20; // skip compression, sizeImage, xpels, ypels, clrUsed, clrImportant
+    // Skip: compression, sizeImage, xpelsPerMeter, ypelsPerMeter, clrUsed, clrImportant (6 * 4 bytes)
+    offset += 24;
 
     if (fileType === 'BM8' || fileType === 'BM\x18') {
         offset = 4 + 14 + 40 + 1026;
