@@ -11,8 +11,8 @@
   <link
     href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=Oxanium:wght@500;600;700&family=Space+Grotesk:wght@400;500;600;700&display=swap"
     rel="stylesheet">
-  <script type="module" crossorigin src="/muonline-bmd-viewer/app/assets/index-BCUjoHcZ.js"></script>
-  <link rel="stylesheet" crossorigin href="/muonline-bmd-viewer/app/assets/index-CEqC1Qt0.css">
+  <script type="module" crossorigin src="/muonline-bmd-viewer/app/assets/index-CepkMKsW.js"></script>
+  <link rel="stylesheet" crossorigin href="/muonline-bmd-viewer/app/assets/index-PtCtgqEb.css">
 </head>
 
 <body>
@@ -26,6 +26,7 @@
         <div class="sidebar-tabs" id="sidebar-tabs">
           <button class="tab-btn active" data-view="bmd">Model Viewer</button>
           <button class="tab-btn" data-view="character">Test Animation Scene</button>
+          <button class="tab-btn" data-view="terrain">World Viewer</button>
         </div>
 
         <div id="sidebar-bmd" class="sidebar-view">
@@ -404,6 +405,57 @@
             </div>
           </div>
         </div>
+
+        <div id="sidebar-terrain" class="sidebar-view hidden">
+          <div class="control-section">
+            <h3>World Data</h3>
+            <div class="drop-zone" id="terrain-data-drop-zone" title="Load Data folder">
+              <p>Drop <strong>Data</strong> folder here</p>
+              <input type="file" id="terrain-data-folder-input" webkitdirectory directory multiple class="file-input-hidden" />
+            </div>
+            <p id="terrain-status" class="control-note">No Data loaded.</p>
+
+            <div id="terrain-world-selector" class="section-gap" style="display:none;">
+              <label for="terrain-world-select" class="field-label">World</label>
+              <div class="row-inline">
+                <select id="terrain-world-select" class="animation-dropdown full-width">
+                  <option value="">-- Select World --</option>
+                </select>
+                <button id="terrain-load-world-btn" class="modern-btn btn-primary">Load</button>
+              </div>
+            </div>
+          </div>
+
+          <div class="control-section">
+            <h3>Viewport</h3>
+            <div class="checkbox-control">
+              <label for="terrain-wireframe">Wireframe</label>
+              <input type="checkbox" id="terrain-wireframe" class="modern-checkbox">
+            </div>
+            <div class="checkbox-control">
+              <label for="terrain-show-objects">Show Objects</label>
+              <input type="checkbox" id="terrain-show-objects" class="modern-checkbox" checked>
+            </div>
+            <div class="section-divider">
+              <div class="brightness-control">
+                <label id="terrain-brightness-label" for="terrain-brightness-slider">Brightness</label>
+                <input type="range" id="terrain-brightness-slider" class="modern-slider" min="0.1" max="4.0"
+                  step="0.1" value="1.5">
+              </div>
+              <div class="brightness-control">
+                <label id="terrain-object-distance-label" for="terrain-object-distance-slider">Object Distance</label>
+                <input type="range" id="terrain-object-distance-slider" class="modern-slider" min="2000" max="32000"
+                  step="200" value="12000">
+              </div>
+            </div>
+          </div>
+
+          <div class="control-section" id="terrain-stats">
+            <h3>Stats</h3>
+            <p>Tiles: <span id="terrain-tile-count">0</span></p>
+            <p>Objects: <span id="terrain-object-count">0</span></p>
+          </div>
+        </div>
       </div>
     </aside>
 
@@ -440,6 +492,22 @@
 
       <div id="character-status">Ready</div>
     </main>
+
+    <main class="main-content view hidden" id="view-terrain">
+      <div class="header">
+        <h1>World Viewer</h1>
+      </div>
+
+      <button class="sidebar-toggle" id="terrain-sidebar-toggle" title="Toggle Controls">
+        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <path d="M4 6H20M4 12H20M4 18H20" stroke="currentColor" stroke-width="2" stroke-linecap="round" />
+        </svg>
+      </button>
+
+      <div id="terrain-canvas-container"></div>
+
+      <div id="terrain-status-bar">Ready</div>
+    </main>
   </div>
 
   <script>
@@ -447,6 +515,7 @@
     const sidebarToggles = [
       document.getElementById('sidebar-toggle'),
       document.getElementById('character-sidebar-toggle'),
+      document.getElementById('terrain-sidebar-toggle'),
     ].filter(Boolean);
     let resizeTimeoutId = null;
 
@@ -483,10 +552,12 @@
     const sidebarViews = {
       bmd: document.getElementById('sidebar-bmd'),
       character: document.getElementById('sidebar-character'),
+      terrain: document.getElementById('sidebar-terrain'),
     };
     const mainViews = {
       bmd: document.getElementById('view-bmd'),
       character: document.getElementById('view-character'),
+      terrain: document.getElementById('view-terrain'),
     };
 
     tabs.forEach(btn => {
@@ -529,7 +600,7 @@
         e.target.classList.add('active');
       }
     });
-  </script>
+  </script>
 </body>
 
 </html>
