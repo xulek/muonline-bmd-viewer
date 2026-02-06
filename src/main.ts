@@ -10,6 +10,7 @@ import GIF from 'gif.js';
 import gifWorkerUrl from 'gif.js/dist/gif.worker.js?url';
 import { isElectron, autoSearchTextures, readFileFromPath, createFileFromElectronData, getFilePathFromFile } from './electron-helper';
 import { CharacterTestScene } from './character-test-scene';
+import { TerrainScene } from './terrain-scene';
 import { SkinnedVertexNormalsHelper } from './helpers/SkinnedVertexNormalsHelper';
 import { Disposer } from './utils/Disposer';
 import { FileValidator, FileValidationError } from './utils/FileValidator';
@@ -2080,6 +2081,7 @@ class App {
 
 const app = new App();
 let characterScene: CharacterTestScene | null = null;
+let terrainScene: TerrainScene | null = null;
 
 if (isElectron()) {
     characterScene = new CharacterTestScene();
@@ -2095,6 +2097,9 @@ if (isElectron()) {
     if (viewCharacter) viewCharacter.classList.add('hidden');
 }
 
+terrainScene = new TerrainScene();
+terrainScene.setActive(false);
+
 const tabButtons = document.querySelectorAll<HTMLButtonElement>('.tab-btn');
 tabButtons.forEach(btn => {
     btn.addEventListener('click', () => {
@@ -2102,6 +2107,9 @@ tabButtons.forEach(btn => {
         app.setActive(target === 'bmd');
         if (characterScene) {
             characterScene.setActive(target === 'character');
+        }
+        if (terrainScene) {
+            terrainScene.setActive(target === 'terrain');
         }
     });
 });
