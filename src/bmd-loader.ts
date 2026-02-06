@@ -8,6 +8,7 @@ import {
 } from './types';
 import { decodeTga } from '@lunapaint/tga-codec';
 import { createLea256EcbDecrypt } from './crypto/lea256';
+import { decryptFileCryptor } from './crypto/file-cryptor';
 import { readStructArray, StructLayout } from './BinaryStruct';
 
 //----------------------------------------------------------
@@ -51,18 +52,6 @@ const LEA_KEY = new Uint8Array([
 ]);
   
 const leaDecrypt = createLea256EcbDecrypt(LEA_KEY);
-
-function decryptFile(enc: Uint8Array): Uint8Array {
-  const MAP_XOR_KEY = new Uint8Array([0xD1, 0x73, 0x52, 0xF6, 0xD2, 0x9A, 0xCB, 0x27,
-                                      0x3E, 0xAF, 0x59, 0x31, 0x37, 0xB3, 0xE7, 0xA2]);
-  const out = new Uint8Array(enc.length);
-  let key = 0x5E;
-  for (let i = 0; i < enc.length; i++) {
-    out[i] = (enc[i] ^ MAP_XOR_KEY[i & 15]) - key;
-    key = (enc[i] + 0x3D) & 0xFF;
-  }
-  return out;
-}
 
 function decryptLea(enc: Uint8Array): Uint8Array {
   return leaDecrypt(enc);
@@ -265,7 +254,7 @@ export class BMDLoader {
         if (version === 12 || version === 15) {
           const size = view.getInt32(4, true);
           const enc  = new Uint8Array(work, 8, size);
-          const dec  = version === 12 ? decryptFile(enc) : decryptLea(enc);
+          const dec  = version === 12 ? decryptFileCryptor(enc) : decryptLea(enc);
           new Uint8Array(work, 8, size).set(dec);
           dataOffset = 8;
           console.log(`Decrypted ${size} B @8`);

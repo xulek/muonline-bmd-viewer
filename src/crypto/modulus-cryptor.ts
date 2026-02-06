@@ -1,8 +1,12 @@
 // src/crypto/modulus-cryptor.ts
 import { TEACipher } from './tea-cipher';
 import { ThreeWayCipher } from './threeway-cipher';
+import { CAST5Cipher } from './cast5-cipher';
 import { RC5Cipher } from './rc5-cipher';
 import { RC6Cipher } from './rc6-cipher';
+import { MARSCipher } from './mars-cipher';
+import { IDEACipher } from './idea-cipher';
+import { GOSTCipher } from './gost-cipher';
 
 interface Cipher {
     getBlockSize(): number;
@@ -13,10 +17,12 @@ function initCipher(algorithm: number, key: Uint8Array): Cipher {
     switch (algorithm & 7) {
         case 0: return new TEACipher(key);
         case 1: return new ThreeWayCipher(key);
-        // case 2: CAST5 - add if needed
+        case 2: return new CAST5Cipher(key);
         case 3: return new RC5Cipher(key);
         case 4: return new RC6Cipher(key);
-        // cases 5-7: MARS, IDEA, GOST - add if needed
+        case 5: return new MARSCipher(key);
+        case 6: return new IDEACipher(key);
+        case 7: return new GOSTCipher(key);
         default:
             throw new Error(`Unsupported ModulusCryptor algorithm: ${algorithm & 7}`);
     }

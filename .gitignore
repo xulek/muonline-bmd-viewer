@@ -146,3 +146,4 @@ release/
 *.dmg
 *.AppImage
 *.deb
+muonline/
