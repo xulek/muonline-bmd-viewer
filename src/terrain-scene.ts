@@ -13,6 +13,9 @@ import {
     scanWorldFolders,
 } from './electron-helper';
 
+const TERRAIN_BASE_AMBIENT_INTENSITY = 0.6;
+const TERRAIN_BASE_SUN_INTENSITY = 1.0;
+
 export class TerrainScene {
     private scene!: THREE.Scene;
     private camera!: THREE.PerspectiveCamera;
@@ -20,6 +23,8 @@ export class TerrainScene {
     private controls!: OrbitControls;
     private clock = new THREE.Clock();
     private isActive = false;
+    private ambientLight: THREE.AmbientLight | null = null;
+    private sunLight: THREE.DirectionalLight | null = null;
 
     private terrainMesh: THREE.Mesh | null = null;
     private objectsGroup: THREE.Group | null = null;
@@ -59,6 +64,8 @@ export class TerrainScene {
         this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
         this.renderer.setSize(container.clientWidth, container.clientHeight);
         this.renderer.outputColorSpace = THREE.SRGBColorSpace;
+        this.renderer.toneMapping = THREE.ACESFilmicToneMapping;
+        this.renderer.toneMappingExposure = 1.0;
         container.appendChild(this.renderer.domElement);
 
         this.controls = new OrbitControls(this.camera, this.renderer.domElement);
@@ -68,10 +75,10 @@ export class TerrainScene {
         this.controls.minDistance = 100;
 
         // Lights
-        const ambient = new THREE.AmbientLight(0xffffff, 0.6);
-        const sun = new THREE.DirectionalLight(0xffffff, 1.0);
-        sun.position.set(worldCenter, 10000, worldCenter);
-        this.scene.add(ambient, sun);
+        this.ambientLight = new THREE.AmbientLight(0xffffff, TERRAIN_BASE_AMBIENT_INTENSITY);
+        this.sunLight = new THREE.DirectionalLight(0xffffff, TERRAIN_BASE_SUN_INTENSITY);
+        this.sunLight.position.set(worldCenter, 10000, worldCenter);
+        this.scene.add(this.ambientLight, this.sunLight);
 
         window.addEventListener('resize', () => {
             if (!this.isActive) return;
@@ -147,6 +154,20 @@ export class TerrainScene {
                 this.objectsGroup.visible = showObjects.checked;
             }
         });
+
+        // Scene brightness
+        const brightnessSlider = document.getElementById('terrain-brightness-slider') as HTMLInputElement | null;
+        const brightnessLabel = document.getElementById('terrain-brightness-label');
+        if (brightnessSlider && brightnessLabel) {
+            brightnessSlider.addEventListener('input', (e) => {
+                const value = parseFloat((e.target as HTMLInputElement).value);
+                brightnessLabel.textContent = `Brightness: ${value.toFixed(2)}×`;
+                this.setBrightness(value);
+            });
+            const initialBrightness = parseFloat(brightnessSlider.value) || 2.0;
+            brightnessLabel.textContent = `Brightness: ${initialBrightness.toFixed(2)}×`;
+            this.setBrightness(initialBrightness);
+        }
     }
 
     /** Electron: open native directory dialog and load */
@@ -361,6 +382,13 @@ export class TerrainScene {
         }
 
         return files;
+    }
+
+    private setBrightness(value: number) {
+        const safeValue = Math.max(0.1, value);
+        this.renderer.toneMappingExposure = safeValue;
+        if (this.ambientLight) this.ambientLight.intensity = TERRAIN_BASE_AMBIENT_INTENSITY * safeValue;
+        if (this.sunLight) this.sunLight.intensity = TERRAIN_BASE_SUN_INTENSITY * safeValue;
     }
 
     private animate = () => {

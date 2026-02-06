@@ -691,7 +691,8 @@ input[type='color'] {
 }
 
 #brightness-slider,
-#character-brightness-slider {
+#character-brightness-slider,
+#terrain-brightness-slider {
   width: 62%;
 }
 

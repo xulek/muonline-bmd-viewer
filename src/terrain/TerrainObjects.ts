@@ -5,6 +5,11 @@ import { BMDLoader } from '../bmd-loader';
 import { convertOzjToDataUrl } from '../ozj-loader';
 import type { OBJData, MapObject } from './formats/OBJReader';
 import { TERRAIN_WORLD_SIZE } from './TerrainMesh';
+import {
+    applyBlendModeToMaterial,
+    detectBlendModeFromTexture,
+    type BlendHeuristicResult,
+} from '../utils/TextureBlendHeuristics';
 
 // World 1 object type-to-name mapping.
 // Source: MU client object registry (Lorencia object table).
@@ -151,6 +156,8 @@ export async function loadTerrainObjects(
 
     const bmdLoader = new BMDLoader();
     const textureLoader = new THREE.TextureLoader();
+    const textureCache = new Map<string, THREE.Texture>();
+    const blendCache = new Map<string, BlendHeuristicResult>();
 
     // Group objects by type for instancing
     const byType = new Map<number, MapObject[]>();
@@ -188,7 +195,7 @@ export async function loadTerrainObjects(
 
             // Try to load textures for this object
             for (const texName of requiredTextures) {
-                await tryApplyTexture(template, texName, files, textureLoader);
+                await tryApplyTexture(template, texName, files, textureLoader, textureCache, blendCache);
             }
 
             // Place instances
@@ -334,12 +341,37 @@ async function tryApplyTexture(
     texName: string,
     files: Map<string, File>,
     textureLoader: THREE.TextureLoader,
+    textureCache: Map<string, THREE.Texture>,
+    blendCache: Map<string, BlendHeuristicResult>,
 ): Promise<void> {
-    const baseName = texName.split(/[\\/]/).pop()!.replace(/\.[^.]+$/, '').toLowerCase();
+    const baseNameRaw = texName.split(/[\\/]/).pop()!.replace(/\.[^.]+$/, '');
+    const baseName = baseNameRaw.toLowerCase();
+    const cacheKey = normalizeObjectBaseName(baseName);
+
+    const applyToGroup = (texture: THREE.Texture, blend: BlendHeuristicResult) => {
+        group.traverse(obj => {
+            const mesh = obj as THREE.Mesh;
+            if (!mesh.isMesh || !mesh.userData.texturePath) return;
+            const wantedBase = mesh.userData.texturePath.split(/[\\/]/).pop()!.replace(/\.[^.]+$/, '');
+            if (normalizeObjectBaseName(wantedBase) !== cacheKey) return;
+
+            const mat = mesh.material as THREE.MeshPhongMaterial;
+            mat.map = texture;
+            mat.color.set(0xffffff);
+            applyBlendModeToMaterial(mat, blend);
+        });
+    };
+
+    const cachedTexture = textureCache.get(cacheKey);
+    const cachedBlend = blendCache.get(cacheKey);
+    if (cachedTexture && cachedBlend) {
+        applyToGroup(cachedTexture, cachedBlend);
+        return;
+    }
 
     for (const [name, file] of files) {
-        const fBase = name.split(/[\\/]/).pop()!.replace(/\.[^.]+$/, '').toLowerCase();
-        if (fBase === baseName) {
+        const fBaseRaw = name.split(/[\\/]/).pop()!.replace(/\.[^.]+$/, '');
+        if (normalizeObjectBaseName(fBaseRaw) === cacheKey) {
             try {
                 const ext = file.name.split('.').pop()!.toLowerCase();
                 let url: string;
@@ -354,17 +386,11 @@ async function tryApplyTexture(
                 tex.wrapT = THREE.RepeatWrapping;
                 tex.flipY = false;
 
-                group.traverse(obj => {
-                    const mesh = obj as THREE.Mesh;
-                    if (mesh.isMesh && mesh.userData.texturePath) {
-                        const wanted = mesh.userData.texturePath.split(/[\\/]/).pop()!.replace(/\.[^.]+$/, '').toLowerCase();
-                        if (wanted === baseName) {
-                            const mat = mesh.material as THREE.MeshPhongMaterial;
-                            mat.map = tex;
-                            mat.needsUpdate = true;
-                        }
-                    }
-                });
+                const blendResult = detectBlendModeFromTexture(tex, `${baseNameRaw} ${name}`);
+                tex.userData.blendHeuristic = blendResult;
+                textureCache.set(cacheKey, tex);
+                blendCache.set(cacheKey, blendResult);
+                applyToGroup(tex, blendResult);
                 return;
             } catch { /* skip */ }
         }
