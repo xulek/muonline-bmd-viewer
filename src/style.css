@@ -556,7 +556,8 @@ input[type='color'] {
 }
 
 #canvas-container,
-#character-canvas-container {
+#character-canvas-container,
+#terrain-canvas-container {
   width: 100%;
   height: 100%;
   position: relative;
@@ -568,12 +569,14 @@ input[type='color'] {
 }
 
 #canvas-container::before,
-#character-canvas-container::before {
+#character-canvas-container::before,
+#terrain-canvas-container::before {
   display: none;
 }
 
 #canvas-container::after,
-#character-canvas-container::after {
+#character-canvas-container::after,
+#terrain-canvas-container::after {
   content: '';
   position: absolute;
   inset: 0;
@@ -582,14 +585,16 @@ input[type='color'] {
 }
 
 #canvas-container canvas,
-#character-canvas-container canvas {
+#character-canvas-container canvas,
+#terrain-canvas-container canvas {
   width: 100% !important;
   height: 100% !important;
   display: block;
 }
 
 #status,
-#character-status {
+#character-status,
+#terrain-status-bar {
   position: absolute;
   right: 1rem;
   bottom: 1rem;

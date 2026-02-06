@@ -24,6 +24,7 @@
         <div class="sidebar-tabs" id="sidebar-tabs">
           <button class="tab-btn active" data-view="bmd">Model Viewer</button>
           <button class="tab-btn" data-view="character">Test Animation Scene</button>
+          <button class="tab-btn" data-view="terrain">World Viewer</button>
         </div>
 
         <div id="sidebar-bmd" class="sidebar-view">
@@ -402,6 +403,35 @@
             </div>
           </div>
         </div>
+
+        <div id="sidebar-terrain" class="sidebar-view hidden">
+          <div class="control-section">
+            <h3>World Data</h3>
+            <div class="drop-zone" id="world-drop-zone" title="Load World folder">
+              <p>Drop <strong>World</strong> folder here</p>
+              <input type="file" id="world-folder-input" webkitdirectory directory multiple class="file-input-hidden" />
+            </div>
+            <p id="terrain-status" class="control-note">No world loaded.</p>
+          </div>
+
+          <div class="control-section">
+            <h3>Viewport</h3>
+            <div class="checkbox-control">
+              <label for="terrain-wireframe">Wireframe</label>
+              <input type="checkbox" id="terrain-wireframe" class="modern-checkbox">
+            </div>
+            <div class="checkbox-control">
+              <label for="terrain-show-objects">Show Objects</label>
+              <input type="checkbox" id="terrain-show-objects" class="modern-checkbox" checked>
+            </div>
+          </div>
+
+          <div class="control-section" id="terrain-stats">
+            <h3>Stats</h3>
+            <p>Tiles: <span id="terrain-tile-count">0</span></p>
+            <p>Objects: <span id="terrain-object-count">0</span></p>
+          </div>
+        </div>
       </div>
     </aside>
 
@@ -438,6 +468,22 @@
 
       <div id="character-status">Ready</div>
     </main>
+
+    <main class="main-content view hidden" id="view-terrain">
+      <div class="header">
+        <h1>World Viewer</h1>
+      </div>
+
+      <button class="sidebar-toggle" id="terrain-sidebar-toggle" title="Toggle Controls">
+        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <path d="M4 6H20M4 12H20M4 18H20" stroke="currentColor" stroke-width="2" stroke-linecap="round" />
+        </svg>
+      </button>
+
+      <div id="terrain-canvas-container"></div>
+
+      <div id="terrain-status-bar">Ready</div>
+    </main>
   </div>
 
   <script>
@@ -445,6 +491,7 @@
     const sidebarToggles = [
       document.getElementById('sidebar-toggle'),
       document.getElementById('character-sidebar-toggle'),
+      document.getElementById('terrain-sidebar-toggle'),
     ].filter(Boolean);
     let resizeTimeoutId = null;
 
@@ -481,10 +528,12 @@
     const sidebarViews = {
       bmd: document.getElementById('sidebar-bmd'),
       character: document.getElementById('sidebar-character'),
+      terrain: document.getElementById('sidebar-terrain'),
     };
     const mainViews = {
       bmd: document.getElementById('view-bmd'),
       character: document.getElementById('view-character'),
+      terrain: document.getElementById('view-terrain'),
     };
 
     tabs.forEach(btn => {
