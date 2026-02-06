@@ -475,7 +475,7 @@ async function tryApplyTexture(
                 const ext = file.name.split('.').pop()!.toLowerCase();
                 let url: string;
                 if (ext === 'ozj' || ext === 'ozt') {
-                    url = await convertOzjToDataUrl(await file.arrayBuffer());
+                    url = await convertOzjToDataUrl(await file.arrayBuffer(), ext as 'ozj' | 'ozt');
                 } else {
                     url = URL.createObjectURL(file);
                 }
