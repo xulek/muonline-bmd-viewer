@@ -5,6 +5,13 @@ import { TerrainLoader } from './terrain/TerrainLoader';
 import { loadTerrainObjects } from './terrain/TerrainObjects';
 import { TERRAIN_SCALE } from './terrain/TerrainMesh';
 import { TERRAIN_SIZE } from './terrain/formats/ATTReader';
+import {
+    createFileFromElectronData,
+    isElectron,
+    openDirectoryDialog,
+    readTerrainWorldFiles,
+    scanWorldFolders,
+} from './electron-helper';
 
 export class TerrainScene {
     private scene!: THREE.Scene;
@@ -17,6 +24,11 @@ export class TerrainScene {
     private terrainMesh: THREE.Mesh | null = null;
     private objectsGroup: THREE.Group | null = null;
     private terrainLoader = new TerrainLoader();
+
+    /** Persistent store of all files from the Data folder (browser mode). */
+    private dataFiles = new Map<string, File>();
+    /** Root path to Data folder (Electron mode). */
+    private dataRootPath: string | null = null;
 
     constructor() {
         this.initThree();
@@ -71,15 +83,21 @@ export class TerrainScene {
 
     private initUI() {
         // Folder drop zone
-        const dropZone = document.getElementById('world-drop-zone');
-        const folderInput = document.getElementById('world-folder-input') as HTMLInputElement | null;
+        const dropZone = document.getElementById('terrain-data-drop-zone');
+        const folderInput = document.getElementById('terrain-data-folder-input') as HTMLInputElement | null;
 
         if (dropZone && folderInput) {
-            dropZone.addEventListener('click', () => folderInput.click());
+            dropZone.addEventListener('click', () => {
+                if (isElectron()) {
+                    this.handleDataSelectElectron();
+                } else {
+                    folderInput.click();
+                }
+            });
 
             folderInput.addEventListener('change', () => {
                 if (folderInput.files && folderInput.files.length > 0) {
-                    this.handleWorldFiles(folderInput.files);
+                    this.handleDataFiles(folderInput.files);
                 }
             });
 
@@ -89,10 +107,19 @@ export class TerrainScene {
                 e.preventDefault();
                 dropZone.classList.remove('drag-hover');
                 if (e.dataTransfer?.files) {
-                    this.handleWorldFiles(e.dataTransfer.files);
+                    this.handleDataFiles(e.dataTransfer.files);
                 }
             });
         }
+
+        // Load World button
+        const loadBtn = document.getElementById('terrain-load-world-btn');
+        loadBtn?.addEventListener('click', () => {
+            const select = document.getElementById('terrain-world-select') as HTMLSelectElement | null;
+            if (select && select.value) {
+                this.loadWorld(parseInt(select.value, 10));
+            }
+        });
 
         // Wireframe toggle
         const wireframe = document.getElementById('terrain-wireframe') as HTMLInputElement | null;
@@ -122,15 +149,135 @@ export class TerrainScene {
         });
     }
 
-    private async handleWorldFiles(fileList: FileList) {
-        const status = document.getElementById('terrain-status');
-        if (status) status.textContent = 'Loading world...';
+    /** Electron: open native directory dialog and load */
+    private async handleDataSelectElectron() {
+        const folderPath = await openDirectoryDialog();
+        if (folderPath) {
+            this.dataRootPath = folderPath;
+            this.dataFiles.clear();
+            const status = document.getElementById('terrain-status');
+            if (status) status.textContent = 'Scanning Data folder...';
 
-        const files = new Map<string, File>();
+            let worldNumbers: number[];
+            try {
+                worldNumbers = await scanWorldFolders(folderPath);
+            } catch (error) {
+                console.error('Failed to scan world folders:', error);
+                const message = (error as Error)?.message || String(error);
+                if (status) {
+                    if (message.includes("No handler registered for 'fs:scanWorldFolders'")) {
+                        status.textContent = 'Electron backend is outdated. Restart the desktop app.';
+                    } else {
+                        status.textContent = `Error scanning Data folder: ${message}`;
+                    }
+                }
+                return;
+            }
+
+            if (worldNumbers.length === 0) {
+                if (status) status.textContent = `No World folders found in Data: ${folderPath}`;
+                return;
+            }
+
+            if (status) status.textContent = `Found ${worldNumbers.length} world(s). Select one to load.`;
+            this.populateWorldSelect(worldNumbers);
+            this.loadWorld(worldNumbers[0]);
+        }
+    }
+
+    /** Browser: handle dropped / selected Data folder files */
+    private handleDataFiles(fileList: FileList) {
+        const status = document.getElementById('terrain-status');
+        if (status) status.textContent = 'Scanning Data folder...';
+
+        this.dataFiles.clear();
+        this.dataRootPath = null;
+
+        // Determine root folder name from first file's webkitRelativePath
+        const firstPath = ((fileList[0] as any).webkitRelativePath as string) || fileList[0].name;
+        const rootName = firstPath.split('/')[0];
+
         for (let i = 0; i < fileList.length; i++) {
             const f = fileList[i];
-            const path = (f as any).webkitRelativePath || f.name;
-            files.set(path, f);
+            const rel = ((f as any).webkitRelativePath as string) || f.name;
+            // Strip the root folder prefix (e.g. "Data/World1/..." → "World1/...")
+            const trimmed = rel.startsWith(rootName + '/') ? rel.slice(rootName.length + 1) : rel;
+            this.dataFiles.set(trimmed.toLowerCase(), f);
+        }
+
+        // Scan for World{N}/ subfolders
+        const worldNumbers = this.scanWorldNumbers();
+
+        if (worldNumbers.length === 0) {
+            if (status) status.textContent = 'No World folders found in Data.';
+            return;
+        }
+
+        if (status) status.textContent = `Found ${worldNumbers.length} world(s). Select one to load.`;
+        this.populateWorldSelect(worldNumbers);
+
+        // Auto-load first world
+        this.loadWorld(worldNumbers[0]);
+    }
+
+    /** Scan dataFiles keys for world{N}/ prefixes */
+    private scanWorldNumbers(): number[] {
+        const worlds = new Set<number>();
+        for (const key of this.dataFiles.keys()) {
+            const m = key.match(/^world(\d+)\//);
+            if (m) worlds.add(parseInt(m[1], 10));
+        }
+        return [...worlds].sort((a, b) => a - b);
+    }
+
+    /** Populate the world dropdown and show it */
+    private populateWorldSelect(worldNumbers: number[]) {
+        const container = document.getElementById('terrain-world-selector');
+        const select = document.getElementById('terrain-world-select') as HTMLSelectElement | null;
+        if (!select || !container) return;
+
+        select.innerHTML = '';
+        for (const n of worldNumbers) {
+            const opt = document.createElement('option');
+            opt.value = n.toString();
+            opt.textContent = `World ${n}`;
+            select.appendChild(opt);
+        }
+
+        container.style.display = '';
+    }
+
+    /** Load a specific world by number */
+    private async loadWorld(worldNumber: number) {
+        const status = document.getElementById('terrain-status');
+        if (status) status.textContent = `Loading World ${worldNumber}...`;
+
+        // Set the select to the current world
+        const select = document.getElementById('terrain-world-select') as HTMLSelectElement | null;
+        if (select) select.value = worldNumber.toString();
+
+        let files = this.buildWorldFiles(worldNumber);
+        if (files.size === 0 && this.dataRootPath && isElectron()) {
+            if (status) status.textContent = `Loading World ${worldNumber} files from disk...`;
+            try {
+                files = await this.loadWorldFilesFromElectron(worldNumber);
+            } catch (error) {
+                console.error('Failed to load world files from Electron:', error);
+                const message = (error as Error)?.message || String(error);
+                if (status) {
+                    if (message.includes("No handler registered for 'fs:readTerrainWorldFiles'")) {
+                        status.textContent = 'Electron backend is outdated. Restart the desktop app.';
+                    } else {
+                        status.textContent = `Error loading World ${worldNumber} files: ${message}`;
+                    }
+                }
+                return;
+            }
+        }
+
+        if (files.size === 0) {
+            if (status) status.textContent = `No files found for World ${worldNumber}.`;
+            return;
         }
 
         try {
@@ -161,11 +308,18 @@ export class TerrainScene {
                 this.objectsGroup = await loadTerrainObjects(
                     result.objectsData,
                     files,
+                    result.mapNumber,
                     (loaded, total) => {
                         if (status) status.textContent = `Loading objects: ${loaded}/${total}...`;
                     },
                 );
                 this.scene.add(this.objectsGroup);
+
+                // Respect current "Show Objects" checkbox state
+                const showObjects = document.getElementById('terrain-show-objects') as HTMLInputElement | null;
+                if (showObjects && this.objectsGroup) {
+                    this.objectsGroup.visible = showObjects.checked;
+                }
             }
 
             if (status) {
@@ -176,6 +330,37 @@ export class TerrainScene {
             console.error('Terrain loading error:', e);
             if (status) status.textContent = `Error: ${(e as Error).message}`;
         }
+    }
+
+    /** Electron: read all files from Data/World{N} and Data/Object{N}. */
+    private async loadWorldFilesFromElectron(worldNumber: number): Promise<Map<string, File>> {
+        if (!this.dataRootPath) return new Map();
+
+        const entries = await readTerrainWorldFiles(this.dataRootPath, worldNumber);
+        const files = new Map<string, File>();
+        for (const entry of entries) {
+            files.set(entry.key.toLowerCase(), createFileFromElectronData(entry.name, entry.data));
+        }
+        return files;
+    }
+
+    /**
+     * Build a files Map for the given world number.
+     * Includes files from world{N}/ and object{N}/ subfolders.
+     * Keys are relative paths (e.g. "world1/EncTerrain1.att").
+     */
+    private buildWorldFiles(worldNumber: number): Map<string, File> {
+        const worldPrefix = `world${worldNumber}/`;
+        const objectPrefix = `object${worldNumber}/`;
+        const files = new Map<string, File>();
+
+        for (const [key, file] of this.dataFiles) {
+            if (key.startsWith(worldPrefix) || key.startsWith(objectPrefix)) {
+                files.set(key, file);
+            }
+        }
+
+        return files;
     }
 
     private animate = () => {

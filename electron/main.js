@@ -6,6 +6,51 @@ const fs = require('fs').promises;
 let mainWindow;
 const missingReadFiles = new Set();
 
+function isMissingPathError(error) {
+  return error && (error.code === 'ENOENT' || error.code === 'ENOTDIR');
+}
+
+async function readDirectoryFilesRecursive(rootDir, keyPrefix) {
+  const files = [];
+
+  async function walk(dirPath, currentPrefix) {
+    let entries;
+    try {
+      entries = await fs.readdir(dirPath, { withFileTypes: true });
+    } catch (error) {
+      if (isMissingPathError(error)) {
+        return;
+      }
+      throw error;
+    }
+
+    for (const entry of entries) {
+      const fullPath = path.join(dirPath, entry.name);
+      if (entry.isDirectory()) {
+        await walk(fullPath, `${currentPrefix}/${entry.name}`);
+        continue;
+      }
+      if (!entry.isFile()) {
+        continue;
+      }
+
+      try {
+        const buffer = await fs.readFile(fullPath);
+        files.push({
+          key: `${currentPrefix}/${entry.name}`.replace(/\\/g, '/').toLowerCase(),
+          name: entry.name,
+          data: buffer.buffer.slice(buffer.byteOffset, buffer.byteOffset + buffer.byteLength),
+        });
+      } catch (error) {
+        console.warn(`[fs:readTerrainWorldFiles] Failed to read file: ${fullPath}`, error);
+      }
+    }
+  }
+
+  await walk(rootDir, keyPrefix.toLowerCase());
+  return files;
+}
+
 function createWindow() {
   mainWindow = new BrowserWindow({
     width: 1400,
@@ -116,6 +161,59 @@ ipcMain.handle('fs:readFile', async (event, filePath) => {
     }
     console.error('[fs:readFile] Error reading file:', error);
     throw error;
+  }
+});
+
+// Scan Data folder for World{N} directories
+ipcMain.handle('fs:scanWorldFolders', async (event, dataRootPath) => {
+  if (!dataRootPath) {
+    return [];
+  }
+
+  try {
+    const entries = await fs.readdir(dataRootPath, { withFileTypes: true });
+    const worlds = [];
+
+    for (const entry of entries) {
+      if (!entry.isDirectory()) {
+        continue;
+      }
+      const match = entry.name.match(/^world(\d+)$/i);
+      if (match) {
+        worlds.push(parseInt(match[1], 10));
+      }
+    }
+
+    return worlds.sort((a, b) => a - b);
+  } catch (error) {
+    console.warn(`[fs:scanWorldFolders] Failed to scan Data folder: ${dataRootPath}`, error);
+    return [];
+  }
+});
+
+// Read all files from Data/World{N} and Data/Object{N}
+ipcMain.handle('fs:readTerrainWorldFiles', async (event, dataRootPath, worldNumber) => {
+  if (!dataRootPath || !Number.isFinite(worldNumber)) {
+    return [];
+  }
+
+  const worldIndex = Math.trunc(worldNumber);
+  if (worldIndex <= 0) {
+    return [];
+  }
+
+  const worldFolder = `World${worldIndex}`;
+  const objectFolder = `Object${worldIndex}`;
+
+  try {
+    const [worldFiles, objectFiles] = await Promise.all([
+      readDirectoryFilesRecursive(path.join(dataRootPath, worldFolder), worldFolder),
+      readDirectoryFilesRecursive(path.join(dataRootPath, objectFolder), objectFolder),
+    ]);
+    return [...worldFiles, ...objectFiles];
+  } catch (error) {
+    console.error(`[fs:readTerrainWorldFiles] Failed to read World ${worldIndex} files`, error);
+    return [];
   }
 });
 

@@ -204,7 +204,9 @@ vec4 sampleAtlasTile(float tileIndex, vec2 tileUv) {
 }
 
 void main() {
-    vec2 worldTile = vWorldXZ / uTerrainScale;
+    vec2 worldTileRaw = vWorldXZ / uTerrainScale;
+    // Match terrain/object axis conversion: world Z is mirrored from MU Y.
+    vec2 worldTile = vec2(worldTileRaw.x, uTerrainSize - worldTileRaw.y);
 
     // Offset by a small epsilon before floor() to prevent wrong tile lookup at exact
     // tile boundaries where shared vertices sit (e.g., position exactly at 600.0).

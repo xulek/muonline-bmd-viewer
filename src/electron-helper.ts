@@ -1,6 +1,12 @@
 // Electron helper module - provides file access in desktop mode
 // This module works both in browser and Electron
 
+export interface TerrainWorldFileData {
+  key: string;
+  name: string;
+  data: ArrayBuffer;
+}
+
 // Type definitions for Electron API
 interface ElectronAPI {
   isElectron: boolean;
@@ -8,6 +14,8 @@ interface ElectronAPI {
   openFiles: (options?: { filters?: Array<{ name: string; extensions: string[] }> }) => Promise<string[]>;
   openDirectory: () => Promise<string | null>;
   readFile: (filePath: string) => Promise<{ name: string; data: ArrayBuffer } | null>;
+  scanWorldFolders: (dataRootPath: string) => Promise<number[]>;
+  readTerrainWorldFiles: (dataRootPath: string, worldNumber: number) => Promise<TerrainWorldFileData[]>;
   searchTextures: (startPath: string, requiredTextures: string[]) => Promise<Record<string, string[]>>;
   getFilePath: (file: File) => string | null;
 }
@@ -79,6 +87,31 @@ export async function readFileFromPath(filePath: string): Promise<{ name: string
     return null;
   }
   return window.electronAPI.readFile(filePath);
+}
+
+/**
+ * Scan Data folder for World{N} directories (Electron only)
+ */
+export async function scanWorldFolders(dataRootPath: string): Promise<number[]> {
+  if (!isElectron() || !window.electronAPI) {
+    console.warn('scanWorldFolders is only available in Electron');
+    return [];
+  }
+  return window.electronAPI.scanWorldFolders(dataRootPath);
+}
+
+/**
+ * Read all files from World{N} and Object{N} (Electron only)
+ */
+export async function readTerrainWorldFiles(
+  dataRootPath: string,
+  worldNumber: number,
+): Promise<TerrainWorldFileData[]> {
+  if (!isElectron() || !window.electronAPI) {
+    console.warn('readTerrainWorldFiles is only available in Electron');
+    return [];
+  }
+  return window.electronAPI.readTerrainWorldFiles(dataRootPath, worldNumber);
 }
 
 /**

@@ -407,11 +407,21 @@
         <div id="sidebar-terrain" class="sidebar-view hidden">
           <div class="control-section">
             <h3>World Data</h3>
-            <div class="drop-zone" id="world-drop-zone" title="Load World folder">
-              <p>Drop <strong>World</strong> folder here</p>
-              <input type="file" id="world-folder-input" webkitdirectory directory multiple class="file-input-hidden" />
+            <div class="drop-zone" id="terrain-data-drop-zone" title="Load Data folder">
+              <p>Drop <strong>Data</strong> folder here</p>
+              <input type="file" id="terrain-data-folder-input" webkitdirectory directory multiple class="file-input-hidden" />
             </div>
-            <p id="terrain-status" class="control-note">No world loaded.</p>
+            <p id="terrain-status" class="control-note">No Data loaded.</p>
+
+            <div id="terrain-world-selector" class="section-gap" style="display:none;">
+              <label for="terrain-world-select" class="field-label">World</label>
+              <div class="row-inline">
+                <select id="terrain-world-select" class="animation-dropdown full-width">
+                  <option value="">-- Select World --</option>
+                </select>
+                <button id="terrain-load-world-btn" class="modern-btn btn-primary">Load</button>
+              </div>
+            </div>
           </div>
 
           <div class="control-section">

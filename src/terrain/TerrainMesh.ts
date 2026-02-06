@@ -4,6 +4,7 @@ import { TERRAIN_SIZE, TWFlags, type TerrainAttributeData } from './formats/ATTR
 import type { OZBData } from './formats/OZBReader';
 
 export const TERRAIN_SCALE = 100;
+export const TERRAIN_WORLD_SIZE = TERRAIN_SIZE * TERRAIN_SCALE;
 const SPECIAL_HEIGHT = 1200;
 
 export function buildTerrainGeometry(
@@ -38,7 +39,9 @@ export function buildTerrainGeometry(
 
             positions[vi * 3]     = vx * TERRAIN_SCALE;
             positions[vi * 3 + 1] = getHeight(tx, ty);
-            positions[vi * 3 + 2] = vy * TERRAIN_SCALE;
+            // MU world is Z-up with XY ground. We render Y-up with XZ ground.
+            // Use Z = (worldSize - Y) to keep handedness consistent and avoid mirrored maps.
+            positions[vi * 3 + 2] = TERRAIN_WORLD_SIZE - vy * TERRAIN_SCALE;
 
             uvs[vi * 2]     = vx / S;
             uvs[vi * 2 + 1] = vy / S;
@@ -67,7 +70,8 @@ export function buildTerrainGeometry(
 
             const nx = hL - hR;
             const ny = 2 * TERRAIN_SCALE;
-            const nz = hD - hU;
+            // Z axis is mirrored (worldSize - y), so invert dH/dz sign.
+            const nz = hU - hD;
             const len = Math.sqrt(nx * nx + ny * ny + nz * nz);
 
             normals[vi * 3]     = nx / len;
@@ -88,12 +92,13 @@ export function buildTerrainGeometry(
             const v2 = (ty + 1) * V + tx + 1;
             const v3 = (ty + 1) * V + tx;
 
+            // Keep front-face winding after mirrored Z mapping.
             indices[idx++] = v0;
-            indices[idx++] = v3;
-            indices[idx++] = v1;
             indices[idx++] = v1;
             indices[idx++] = v3;
+            indices[idx++] = v1;
             indices[idx++] = v2;
+            indices[idx++] = v3;
         }
     }
 
