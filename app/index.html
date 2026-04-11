@@ -11,8 +11,8 @@
   <link
     href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=Oxanium:wght@500;600;700&family=Space+Grotesk:wght@400;500;600;700&display=swap"
     rel="stylesheet">
-  <script type="module" crossorigin src="/muonline-bmd-viewer/app/assets/index-CepkMKsW.js"></script>
-  <link rel="stylesheet" crossorigin href="/muonline-bmd-viewer/app/assets/index-PtCtgqEb.css">
+  <script type="module" crossorigin src="/muonline-bmd-viewer/app/assets/index-C-LAVzpP.js"></script>
+  <link rel="stylesheet" crossorigin href="/muonline-bmd-viewer/app/assets/index-CrbtiiTR.css">
 </head>
 
 <body>
@@ -20,22 +20,61 @@
     <aside class="sidebar" id="sidebar">
       <div class="sidebar-content">
         <div class="sidebar-header">
-          <h2 class="sidebar-title">🛠 Controls</h2>
+          <div>
+            <p class="sidebar-eyebrow">MU Online Toolkit</p>
+            <h2 class="sidebar-title">Control Menu</h2>
+          </div>
+          <div class="sidebar-view-badge" id="sidebar-view-badge">Model workspace</div>
         </div>
 
         <div class="sidebar-tabs" id="sidebar-tabs">
-          <button class="tab-btn active" data-view="bmd">Model Viewer</button>
-          <button class="tab-btn" data-view="character">Test Animation Scene</button>
-          <button class="tab-btn" data-view="terrain">World Viewer</button>
+          <button class="tab-btn active" data-view="bmd">Model</button>
+          <button class="tab-btn" data-view="character">Character</button>
+          <button class="tab-btn" data-view="terrain">World</button>
+        </div>
+
+<div class="control-section explorer-panel" id="explorer-panel"
+          data-menu-description="Recent worlds, bookmarks, presets and models when you need to jump back into a previous context."
+          data-menu-badge="Quick Access">
+          <h3>Library & Search</h3>
+          <input id="explorer-search" class="animation-dropdown full-width mb-sm" type="search"
+            placeholder="Search worlds, bookmarks, presets">
+          <div class="checkbox-control compact-control">
+            <label for="presentation-mode-toggle">Presentation Mode</label>
+            <input type="checkbox" id="presentation-mode-toggle" class="modern-checkbox">
+          </div>
+          <div class="explorer-group">
+            <div class="explorer-group-title">Worlds</div>
+            <div id="explorer-worlds-list" class="explorer-list"></div>
+          </div>
+          <div class="explorer-group">
+            <div class="explorer-group-title">Bookmarks</div>
+            <div id="explorer-bookmarks-list" class="explorer-list"></div>
+          </div>
+          <div class="explorer-group">
+            <div class="explorer-group-title">Characters</div>
+            <div id="explorer-characters-list" class="explorer-list"></div>
+          </div>
+          <div class="explorer-group">
+            <div class="explorer-group-title">Recent Models</div>
+            <div id="explorer-models-list" class="explorer-list"></div>
+          </div>
         </div>
 
         <div id="sidebar-bmd" class="sidebar-view">
-          <div class="control-section">
+          <div class="control-section" id="bmd-import-section"
+            data-menu-description="Start here. Load the base model, an optional animation file and any missing textures."
+            data-menu-badge="Start">
             <h3>Import Assets</h3>
 
             <div class="drop-zone" id="bmd-drop-zone" title="Load Main Model">
               <p>Drop <strong>.bmd</strong> model here</p>
               <input type="file" id="bmd-file-input" accept=".bmd" class="file-input-hidden" />
+            </div>
+
+            <div class="drop-zone drop-zone-folder" id="folder-bmd-drop-zone" title="Browse a folder of .bmd models">
+              <p>Drop or select <strong>folder</strong> with .bmd files</p>
+              <input type="file" id="folder-bmd-input" webkitdirectory directory multiple class="file-input-hidden" />
             </div>
 
             <div class="drop-zone" id="anim-bmd-drop-zone" title="Load External Animations">
@@ -50,10 +89,13 @@
                 <input type="file" id="texture-file-input" accept=".jpg,.jpeg,.png,.tga,.ozt,.ozj" multiple
                   class="file-input-hidden" />
               </div>
+              <button id="remove-textures-btn" class="modern-btn" style="margin-top:6px;width:100%">Remove Textures</button>
             </div>
           </div>
 
-          <div class="control-section">
+          <div class="control-section" id="bmd-animation-section"
+            data-menu-description="Playback controls stay up front so you can preview motion without opening advanced panels."
+            data-menu-badge="Core">
             <h3>Animation Settings</h3>
 
             <div class="slider-control">
@@ -62,6 +104,11 @@
                 <span class="slider-value" id="speed-value">0.20x</span>
               </div>
               <input type="range" id="speed-slider" class="modern-slider" min="0.1" max="2.0" step="0.1" value="0.2">
+            </div>
+
+            <div class="checkbox-control">
+              <label for="animations-enabled-checkbox">Enable Animations</label>
+              <input type="checkbox" id="animations-enabled-checkbox" class="modern-checkbox" checked>
             </div>
 
             <div class="checkbox-control">
@@ -81,8 +128,18 @@
             </div>
           </div>
 
-          <div class="control-section">
+          <div class="control-section" id="bmd-viewport-section"
+            data-menu-description="Inspect geometry, helpers, background and render backend only when the asset is already loaded."
+            data-menu-badge="Preview">
             <h3>Viewport & Render</h3>
+
+            <label for="renderer-backend-select" class="field-label">Renderer Backend</label>
+            <select id="renderer-backend-select" class="animation-dropdown full-width mb-sm">
+              <option value="auto">Auto (prefer WebGPU)</option>
+              <option value="webgpu">WebGPU</option>
+              <option value="webgl">WebGL</option>
+            </select>
+            <p id="renderer-backend-status" class="control-note">Renderer: initializing…</p>
 
             <div class="slider-control">
               <div class="slider-label">
@@ -128,14 +185,19 @@
                   value="2.0">
               </div>
             </div>
+
           </div>
 
-          <div class="control-section initially-hidden" id="blending-controls">
+          <div class="control-section initially-hidden" id="blending-controls"
+            data-menu-description="Fine-tune texture blending only when the automatic material guess is not good enough."
+            data-menu-badge="Advanced">
             <h3>Mesh Blending</h3>
             <div id="blending-container" class="stack-md"></div>
           </div>
 
-          <div class="control-section">
+          <div class="control-section" id="bmd-attachment-section"
+            data-menu-description="Attach a secondary model to a bone after the main asset is already previewing correctly."
+            data-menu-badge="Advanced">
             <h3>Attachment</h3>
 
             <div class="drop-zone" id="attach-drop-zone" title="Attach Model to Bone">
@@ -161,7 +223,9 @@
             </div>
           </div>
 
-          <div class="control-section" id="diagnostics-panel">
+          <div class="control-section" id="diagnostics-panel"
+            data-menu-description="Performance and animation counters for debugging, not for the main workflow."
+            data-menu-badge="Inspect">
             <h3>Stats</h3>
             <p>FPS: <span id="diag-fps">0</span></p>
             <p>Vertices: <span id="diag-meshes-count">0</span></p>
@@ -171,7 +235,9 @@
             <p>Frame: <span id="diag-current-frame">0</span></p>
           </div>
 
-          <div class="control-section" id="export-controls">
+          <div class="control-section" id="export-controls"
+            data-menu-description="Export once the preview, animation speed and framing are ready."
+            data-menu-badge="Deliver">
             <h3>Export</h3>
             <div class="stack-md">
               <div class="row-inline">
@@ -198,6 +264,7 @@
               <button id="export-gif-btn" class="modern-btn btn-primary">Export GIF</button>
               <div class="stack-sm">
                 <button id="export-glb-btn" class="modern-btn btn-primary">Export GLB</button>
+                <button id="export-ai-glb-btn" class="modern-btn">Export AI GLB (Baked)</button>
                 <button id="export-textures-btn" disabled class="modern-btn">Export Textures (PNG)</button>
               </div>
             </div>
@@ -213,7 +280,9 @@
         </div>
 
         <div id="sidebar-character" class="sidebar-view hidden">
-          <div class="control-section">
+          <div class="control-section" id="character-data-section"
+            data-menu-description="Load the game Data folder first so the rest of the character controls can stay simple."
+            data-menu-badge="Start">
             <h3>Game Data</h3>
             <div class="drop-zone" id="data-drop-zone" title="Load Data folder">
               <p>Drop <strong>Data</strong> folder here</p>
@@ -222,7 +291,9 @@
             <p id="data-folder-status" class="control-note">No Data loaded.</p>
           </div>
 
-          <div class="control-section">
+          <div class="control-section" id="character-profile-section"
+            data-menu-description="Choose the class and base rotation behavior before touching equipment or animation."
+            data-menu-badge="Core">
             <h3>Character</h3>
             <label for="character-class-select" class="field-label">Class</label>
             <select id="character-class-select" class="animation-dropdown full-width mb-md">
@@ -235,7 +306,9 @@
             </div>
           </div>
 
-          <div class="control-section">
+          <div class="control-section" id="character-equipment-section"
+            data-menu-description="All visible gear slots in one place so outfit changes stay fast."
+            data-menu-badge="Core">
             <h3>Equipment</h3>
             <label for="character-helm-select" class="field-label">Helm</label>
             <select id="character-helm-select" class="animation-dropdown full-width mb-sm">
@@ -278,7 +351,9 @@
             </select>
           </div>
 
-          <div class="control-section">
+          <div class="control-section" id="character-effects-section"
+            data-menu-description="Optional item modifiers and rare-item effects live here to reduce visual noise elsewhere."
+            data-menu-badge="Advanced">
             <h3>Item Effects</h3>
             <div class="slider-control">
               <div class="slider-label">
@@ -305,7 +380,21 @@
             </div>
           </div>
 
-          <div class="control-section">
+          <div class="control-section" id="character-presets-section"
+            data-menu-description="Save the current class, gear and render state when you want a reusable setup."
+            data-menu-badge="Save">
+            <h3>Presets</h3>
+            <div class="row-inline">
+              <input id="character-preset-name" type="text" class="animation-dropdown full-width"
+                placeholder="Preset name">
+              <button id="character-save-preset-btn" class="modern-btn btn-primary">Save</button>
+            </div>
+            <p id="character-preset-status" class="control-note">Save current class, gear and render state.</p>
+          </div>
+
+          <div class="control-section" id="character-animation-section"
+            data-menu-description="Pick the active animation and control its playback without mixing it with render toggles."
+            data-menu-badge="Motion">
             <h3>Animation Settings</h3>
             <div class="slider-control">
               <div class="slider-label">
@@ -322,7 +411,9 @@
             </select>
           </div>
 
-          <div class="control-section">
+          <div class="control-section" id="character-viewport-section"
+            data-menu-description="Viewport helpers and lighting stay separate from animation and equipment for easier scanning."
+            data-menu-badge="Preview">
             <h3>Viewport & Render</h3>
 
             <div class="slider-control">
@@ -371,43 +462,50 @@
               </div>
             </div>
 
-            <div class="control-section initially-hidden" id="character-blending-controls">
-              <h3>Mesh Blending</h3>
-              <div id="character-blending-container" class="stack-md"></div>
-            </div>
+          </div>
 
-            <div class="control-section" id="character-export-controls">
-              <h3>Export</h3>
-              <div class="stack-md">
-                <div class="row-inline">
-                  <label for="character-gif-width-input">GIF</label>
-                  <input id="character-gif-width-input" type="number" class="frame-input input-w-md" value="800" min="16"
-                    max="1024" step="16">
-                  <span>×</span>
-                  <input id="character-gif-height-input" type="number" class="frame-input input-w-md" value="600" min="16"
-                    max="1024" step="16">
-                  <span>px</span>
-                </div>
-                <div class="row-inline">
-                  <label for="character-gif-delay-input">Delay</label>
-                  <input id="character-gif-delay-input" type="number" class="frame-input input-w-lg" value="" placeholder="auto"
-                    min="10" max="500" step="10">
-                  <span>ms (blank = auto)</span>
-                </div>
-                <div class="row-inline">
-                  <label for="character-gif-frame-multiplier-input">Smoothness</label>
-                  <input id="character-gif-frame-multiplier-input" type="number" class="frame-input input-w-lg" value="1" min="1"
-                    max="8" step="1">
-                  <span>× frames</span>
-                </div>
-                <button id="character-export-gif-btn" class="modern-btn btn-primary">Export GIF</button>
+          <div class="control-section initially-hidden" id="character-blending-controls"
+            data-menu-description="Adjust blend behavior only when automatic character materials still need manual help."
+            data-menu-badge="Advanced">
+            <h3>Mesh Blending</h3>
+            <div id="character-blending-container" class="stack-md"></div>
+          </div>
+
+          <div class="control-section" id="character-export-controls"
+            data-menu-description="Export the current character preview once speed, framing and gear are correct."
+            data-menu-badge="Deliver">
+            <h3>Export</h3>
+            <div class="stack-md">
+              <div class="row-inline">
+                <label for="character-gif-width-input">GIF</label>
+                <input id="character-gif-width-input" type="number" class="frame-input input-w-md" value="800" min="16"
+                  max="1024" step="16">
+                <span>×</span>
+                <input id="character-gif-height-input" type="number" class="frame-input input-w-md" value="600" min="16"
+                  max="1024" step="16">
+                <span>px</span>
               </div>
+              <div class="row-inline">
+                <label for="character-gif-delay-input">Delay</label>
+                <input id="character-gif-delay-input" type="number" class="frame-input input-w-lg" value="" placeholder="auto"
+                  min="10" max="500" step="10">
+                <span>ms (blank = auto)</span>
+              </div>
+              <div class="row-inline">
+                <label for="character-gif-frame-multiplier-input">Smoothness</label>
+                <input id="character-gif-frame-multiplier-input" type="number" class="frame-input input-w-lg" value="1" min="1"
+                  max="8" step="1">
+                <span>× frames</span>
+              </div>
+              <button id="character-export-gif-btn" class="modern-btn btn-primary">Export GIF</button>
             </div>
           </div>
         </div>
 
         <div id="sidebar-terrain" class="sidebar-view hidden">
-          <div class="control-section">
+          <div class="control-section" id="terrain-world-data-section"
+            data-menu-description="Load Data and pick the current world in one place before moving around the map."
+            data-menu-badge="Start">
             <h3>World Data</h3>
             <div class="drop-zone" id="terrain-data-drop-zone" title="Load Data folder">
               <p>Drop <strong>Data</strong> folder here</p>
@@ -426,8 +524,36 @@
             </div>
           </div>
 
-          <div class="control-section">
+          <div class="control-section" id="terrain-navigation-section"
+            data-menu-description="Minimap, jump fields and bookmarks stay together for fast navigation."
+            data-menu-badge="Core">
+            <h3>Navigation</h3>
+            <canvas id="terrain-minimap-canvas" class="terrain-minimap" width="220" height="220"></canvas>
+            <div class="row-inline space-top-sm">
+              <input id="terrain-jump-x" type="number" class="frame-input input-w-lg" placeholder="X">
+              <input id="terrain-jump-z" type="number" class="frame-input input-w-lg" placeholder="Z">
+              <button id="terrain-jump-btn" class="modern-btn btn-primary">Jump</button>
+            </div>
+            <div class="row-inline space-top-sm">
+              <input id="terrain-bookmark-name" type="text" class="animation-dropdown full-width"
+                placeholder="Bookmark name">
+              <button id="terrain-save-bookmark-btn" class="modern-btn">Save</button>
+            </div>
+            <p id="terrain-bookmark-status" class="control-note">Save camera and selected object as a bookmark.</p>
+            <p id="terrain-last-context" class="control-note accent-note"></p>
+          </div>
+
+          <div class="control-section" id="terrain-viewport-section"
+            data-menu-description="Render and distance controls for scene inspection after a world is loaded."
+            data-menu-badge="Preview">
             <h3>Viewport</h3>
+            <label for="terrain-renderer-backend" class="field-label">Renderer Backend</label>
+            <select id="terrain-renderer-backend" class="animation-dropdown full-width mb-sm">
+              <option value="auto">Auto (prefer WebGPU)</option>
+              <option value="webgpu">WebGPU</option>
+              <option value="webgl">WebGL</option>
+            </select>
+            <p id="terrain-renderer-status" class="control-note">Renderer: initializing…</p>
             <div class="checkbox-control">
               <label for="terrain-wireframe">Wireframe</label>
               <input type="checkbox" id="terrain-wireframe" class="modern-checkbox">
@@ -435,6 +561,14 @@
             <div class="checkbox-control">
               <label for="terrain-show-objects">Show Objects</label>
               <input type="checkbox" id="terrain-show-objects" class="modern-checkbox" checked>
+            </div>
+            <div class="checkbox-control">
+              <label for="terrain-animations-enabled">Enable Animations</label>
+              <input type="checkbox" id="terrain-animations-enabled" class="modern-checkbox" checked>
+            </div>
+            <div class="checkbox-control">
+              <label for="terrain-sun-enabled">Sun Light</label>
+              <input type="checkbox" id="terrain-sun-enabled" class="modern-checkbox" checked>
             </div>
             <div class="section-divider">
               <div class="brightness-control">
@@ -445,12 +579,36 @@
               <div class="brightness-control">
                 <label id="terrain-object-distance-label" for="terrain-object-distance-slider">Object Distance</label>
                 <input type="range" id="terrain-object-distance-slider" class="modern-slider" min="2000" max="32000"
-                  step="200" value="12000">
+                  step="200" value="6000">
               </div>
             </div>
           </div>
 
-          <div class="control-section" id="terrain-stats">
+          <div class="control-section" id="terrain-object-section"
+            data-menu-description="Selected-object details and actions stay isolated from map navigation for less clutter."
+            data-menu-badge="Inspect">
+            <h3>Selected Object</h3>
+            <div id="terrain-object-empty" class="control-note">No object selected.</div>
+            <div id="terrain-object-details" class="hidden">
+              <p>World: <span id="terrain-selected-world">-</span></p>
+              <p>Type: <span id="terrain-selected-type">-</span></p>
+              <p>Model: <span id="terrain-selected-model">-</span></p>
+              <p>Position: <span id="terrain-selected-position">-</span></p>
+              <p>Rotation: <span id="terrain-selected-rotation">-</span></p>
+              <p>Scale: <span id="terrain-selected-scale">-</span></p>
+              <div class="stack-sm space-top-sm">
+                <button id="terrain-focus-object-btn" class="modern-btn btn-primary">Focus</button>
+                <button id="terrain-isolate-object-btn" class="modern-btn">Hide Others</button>
+                <button id="terrain-reset-isolate-btn" class="modern-btn">Reset</button>
+                <button id="terrain-open-model-btn" class="modern-btn">Open in Model Viewer</button>
+              </div>
+              <p id="terrain-open-model-hint" class="control-note"></p>
+            </div>
+          </div>
+
+          <div class="control-section" id="terrain-stats"
+            data-menu-description="High-level counters for troubleshooting world loading and density."
+            data-menu-badge="Stats">
             <h3>Stats</h3>
             <p>Tiles: <span id="terrain-tile-count">0</span></p>
             <p>Objects: <span id="terrain-object-count">0</span></p>
@@ -471,6 +629,15 @@
       </button>
 
       <div id="canvas-container"></div>
+
+      <aside id="folder-browser-panel" class="folder-browser-panel">
+        <div class="folder-browser-header">
+          <span class="folder-browser-title">Model Browser</span>
+          <button id="folder-browser-close" class="folder-browser-close" title="Close panel">✕</button>
+        </div>
+        <div id="folder-browser-count" class="folder-browser-count"></div>
+        <div id="folder-browser-list" class="folder-browser-list"></div>
+      </aside>
 
       <div id="animations-container"></div>
 
@@ -506,101 +673,50 @@
 
       <div id="terrain-canvas-container"></div>
 
+      <aside id="terrain-object-editor-panel" class="terrain-object-editor-panel hidden">
+        <div class="terrain-editor-header">
+          <div>
+            <p class="sidebar-eyebrow">World Object</p>
+            <h2 class="terrain-editor-title" id="terrain-editor-title">Object Editor</h2>
+          </div>
+          <button id="terrain-editor-close-btn" class="folder-browser-close" title="Close panel">✕</button>
+        </div>
+
+        <p id="terrain-editor-meta" class="control-note accent-note">Right-click a selected object.</p>
+
+        <div class="section-divider">
+          <h3>Transform</h3>
+          <label class="field-label" for="terrain-editor-pos-x">Position</label>
+          <div class="row-inline">
+            <input id="terrain-editor-pos-x" type="number" class="frame-input input-w-md" step="1" placeholder="X">
+            <input id="terrain-editor-pos-y" type="number" class="frame-input input-w-md" step="1" placeholder="Y">
+            <input id="terrain-editor-pos-z" type="number" class="frame-input input-w-md" step="1" placeholder="Z">
+          </div>
+          <label class="field-label space-top-sm" for="terrain-editor-scale">Scale</label>
+          <input id="terrain-editor-scale" type="number" class="frame-input full-width" min="0.01" step="0.01">
+          <button id="terrain-editor-apply-transform-btn" class="modern-btn btn-primary full-width space-top-sm">Apply Transform</button>
+        </div>
+
+        <div class="section-divider">
+          <h3>Type Materials</h3>
+          <p class="control-note">Save applies blending and alpha threshold to every object with this World and Type.</p>
+          <div id="terrain-editor-materials" class="stack-md space-top-sm"></div>
+        </div>
+
+        <div class="section-divider stack-sm">
+          <button id="terrain-editor-save-btn" class="modern-btn btn-primary full-width">Save Object Settings</button>
+          <button id="terrain-editor-reset-btn" class="modern-btn btn-danger full-width">Reset Object Settings</button>
+          <p id="terrain-editor-status" class="control-note"></p>
+        </div>
+      </aside>
+
       <div id="terrain-status-bar">Ready</div>
     </main>
+
+    <div id="presentation-overlay" class="presentation-overlay hidden"></div>
+    <button id="presentation-exit-btn" class="presentation-exit hidden">Exit Presentation</button>
   </div>
 
-  <script>
-    const sidebar = document.getElementById('sidebar');
-    const sidebarToggles = [
-      document.getElementById('sidebar-toggle'),
-      document.getElementById('character-sidebar-toggle'),
-      document.getElementById('terrain-sidebar-toggle'),
-    ].filter(Boolean);
-    let resizeTimeoutId = null;
-
-    const notifyViewportResize = () => {
-      window.dispatchEvent(new Event('resize'));
-    };
-
-    const scheduleViewportResize = () => {
-      notifyViewportResize();
-      requestAnimationFrame(notifyViewportResize);
-
-      if (resizeTimeoutId !== null) {
-        clearTimeout(resizeTimeoutId);
-      }
-      resizeTimeoutId = setTimeout(notifyViewportResize, 320);
-    };
-
-    sidebarToggles.forEach(btn => {
-      btn.addEventListener('click', () => {
-        sidebar.classList.toggle('closed');
-        scheduleViewportResize();
-      });
-    });
-
-    if (sidebar) {
-      sidebar.addEventListener('transitionend', (event) => {
-        if (event.target !== sidebar) return;
-        if (event.propertyName !== 'transform' && event.propertyName !== 'margin-right') return;
-        notifyViewportResize();
-      });
-    }
-
-    const tabs = document.querySelectorAll('.tab-btn');
-    const sidebarViews = {
-      bmd: document.getElementById('sidebar-bmd'),
-      character: document.getElementById('sidebar-character'),
-      terrain: document.getElementById('sidebar-terrain'),
-    };
-    const mainViews = {
-      bmd: document.getElementById('view-bmd'),
-      character: document.getElementById('view-character'),
-      terrain: document.getElementById('view-terrain'),
-    };
-
-    tabs.forEach(btn => {
-      btn.addEventListener('click', () => {
-        tabs.forEach(b => b.classList.remove('active'));
-        btn.classList.add('active');
-
-        const target = btn.dataset.view || 'bmd';
-        Object.entries(sidebarViews).forEach(([key, el]) => {
-          if (el) el.classList.toggle('hidden', key !== target);
-        });
-        Object.entries(mainViews).forEach(([key, el]) => {
-          if (el) el.classList.toggle('hidden', key !== target);
-        });
-        scheduleViewportResize();
-      });
-    });
-
-    const speedSlider = document.getElementById('speed-slider');
-    const speedValue = document.getElementById('speed-value');
-
-    if (speedSlider && speedValue) {
-      speedSlider.addEventListener('input', (e) => {
-        speedValue.textContent = parseFloat(e.target.value).toFixed(2) + 'x';
-      });
-    }
-
-    const scaleSlider = document.getElementById('scale-slider');
-    const scaleValue = document.getElementById('scale-value');
-
-    if (scaleSlider && scaleValue) {
-      scaleSlider.addEventListener('input', (e) => {
-        scaleValue.textContent = parseFloat(e.target.value).toFixed(2) + 'x';
-      });
-    }
-
-    document.getElementById('animations-container').addEventListener('click', (e) => {
-      if (e.target.tagName === 'BUTTON') {
-        document.querySelectorAll('#animations-container button').forEach(b => b.classList.remove('active'));
-        e.target.classList.add('active');
-      }
-    });
-  </script>
 </body>
 
 </html>
