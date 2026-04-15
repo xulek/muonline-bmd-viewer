@@ -11,55 +11,53 @@
   <link
     href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=Oxanium:wght@500;600;700&family=Space+Grotesk:wght@400;500;600;700&display=swap"
     rel="stylesheet">
-  <script type="module" crossorigin src="/muonline-bmd-viewer/app/assets/index-C-LAVzpP.js"></script>
-  <link rel="stylesheet" crossorigin href="/muonline-bmd-viewer/app/assets/index-CrbtiiTR.css">
+  <script type="module" crossorigin src="/muonline-bmd-viewer/app/assets/index-CwvdNHf2.js"></script>
+  <link rel="modulepreload" crossorigin href="/muonline-bmd-viewer/app/assets/rolldown-runtime-B1FJdls4.js">
+  <link rel="modulepreload" crossorigin href="/muonline-bmd-viewer/app/assets/vendor-CyptC6jy.js">
+  <link rel="modulepreload" crossorigin href="/muonline-bmd-viewer/app/assets/vendor-three-webgpu-BPU3GxCk.js">
+  <link rel="modulepreload" crossorigin href="/muonline-bmd-viewer/app/assets/vendor-three-DKHbxyJh.js">
+  <link rel="modulepreload" crossorigin href="/muonline-bmd-viewer/app/assets/vendor-three-D4PSlf23.js">
+  <link rel="stylesheet" crossorigin href="/muonline-bmd-viewer/app/assets/index-C7_Zh3S3.css">
 </head>
 
 <body>
   <div id="app">
+
+    <div class="top-bar">
+      <div class="top-bar-brand">
+        <span class="top-bar-eyebrow">MU Online Toolkit</span>
+        <span class="top-bar-title">Client Editor</span>
+      </div>
+      <div class="sidebar-tabs" id="sidebar-tabs">
+        <button class="tab-btn active" data-view="bmd">Model</button>
+        <button class="tab-btn" data-view="character">Character</button>
+        <button class="tab-btn" data-view="terrain">World</button>
+        <button class="tab-btn" data-view="att">ATT</button>
+        <button class="tab-btn" data-view="ozj">OZJ</button>
+        <button class="tab-btn" data-view="items">Items</button>
+        <button class="tab-btn" data-view="skills">Skills</button>
+      </div>
+      <div class="top-bar-actions">
+        <div class="sidebar-view-badge" id="sidebar-view-badge">Model workspace</div>
+        <button class="sidebar-toggle" id="sidebar-toggle" title="Toggle Controls">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <path d="M4 6H20M4 12H20M4 18H20" stroke="currentColor" stroke-width="2" stroke-linecap="round" />
+          </svg>
+        </button>
+      </div>
+    </div>
+
+    <div class="app-body">
     <aside class="sidebar" id="sidebar">
       <div class="sidebar-content">
-        <div class="sidebar-header">
-          <div>
-            <p class="sidebar-eyebrow">MU Online Toolkit</p>
-            <h2 class="sidebar-title">Control Menu</h2>
-          </div>
-          <div class="sidebar-view-badge" id="sidebar-view-badge">Model workspace</div>
-        </div>
 
-        <div class="sidebar-tabs" id="sidebar-tabs">
-          <button class="tab-btn active" data-view="bmd">Model</button>
-          <button class="tab-btn" data-view="character">Character</button>
-          <button class="tab-btn" data-view="terrain">World</button>
-        </div>
-
-<div class="control-section explorer-panel" id="explorer-panel"
-          data-menu-description="Recent worlds, bookmarks, presets and models when you need to jump back into a previous context."
-          data-menu-badge="Quick Access">
-          <h3>Library & Search</h3>
-          <input id="explorer-search" class="animation-dropdown full-width mb-sm" type="search"
-            placeholder="Search worlds, bookmarks, presets">
-          <div class="checkbox-control compact-control">
-            <label for="presentation-mode-toggle">Presentation Mode</label>
-            <input type="checkbox" id="presentation-mode-toggle" class="modern-checkbox">
-          </div>
-          <div class="explorer-group">
-            <div class="explorer-group-title">Worlds</div>
-            <div id="explorer-worlds-list" class="explorer-list"></div>
-          </div>
-          <div class="explorer-group">
-            <div class="explorer-group-title">Bookmarks</div>
-            <div id="explorer-bookmarks-list" class="explorer-list"></div>
-          </div>
-          <div class="explorer-group">
-            <div class="explorer-group-title">Characters</div>
-            <div id="explorer-characters-list" class="explorer-list"></div>
-          </div>
-          <div class="explorer-group">
-            <div class="explorer-group-title">Recent Models</div>
-            <div id="explorer-models-list" class="explorer-list"></div>
-          </div>
-        </div>
+        <!-- hidden placeholders so JS references stay valid -->
+        <div id="explorer-worlds-list" class="hidden"></div>
+        <div id="explorer-bookmarks-list" class="hidden"></div>
+        <div id="explorer-characters-list" class="hidden"></div>
+        <div id="explorer-models-list" class="hidden"></div>
+        <input id="explorer-search" class="hidden" type="search">
+        <input type="checkbox" id="presentation-mode-toggle" class="hidden">
 
         <div id="sidebar-bmd" class="sidebar-view">
           <div class="control-section" id="bmd-import-section"
@@ -89,7 +87,7 @@
                 <input type="file" id="texture-file-input" accept=".jpg,.jpeg,.png,.tga,.ozt,.ozj" multiple
                   class="file-input-hidden" />
               </div>
-              <button id="remove-textures-btn" class="modern-btn" style="margin-top:6px;width:100%">Remove Textures</button>
+              <button id="remove-textures-btn" class="modern-btn space-top-xs">Remove Textures</button>
             </div>
           </div>
 
@@ -513,7 +511,7 @@
             </div>
             <p id="terrain-status" class="control-note">No Data loaded.</p>
 
-            <div id="terrain-world-selector" class="section-gap" style="display:none;">
+            <div id="terrain-world-selector" class="section-gap initially-hidden">
               <label for="terrain-world-select" class="field-label">World</label>
               <div class="row-inline">
                 <select id="terrain-world-select" class="animation-dropdown full-width">
@@ -521,6 +519,44 @@
                 </select>
                 <button id="terrain-load-world-btn" class="modern-btn btn-primary">Load</button>
               </div>
+            </div>
+          </div>
+
+          <div class="control-section" id="terrain-attribute-section"
+            data-menu-description="Read the loaded ATT header and inspect every TWFlags bit in one place."
+            data-menu-badge="Inspect">
+            <h3>ATT Parameters</h3>
+            <p id="terrain-attribute-status" class="control-note accent-note">Load a world to inspect ATT metadata.</p>
+            <div class="terrain-attribute-grid section-gap">
+              <div class="terrain-attribute-field">
+                <span class="terrain-attribute-field-label">Version</span>
+                <strong id="terrain-attribute-version" class="terrain-attribute-field-value">-</strong>
+              </div>
+              <div class="terrain-attribute-field">
+                <span class="terrain-attribute-field-label">Index</span>
+                <strong id="terrain-attribute-index" class="terrain-attribute-field-value">-</strong>
+              </div>
+              <div class="terrain-attribute-field">
+                <span class="terrain-attribute-field-label">Header</span>
+                <strong id="terrain-attribute-dimensions" class="terrain-attribute-field-value">-</strong>
+              </div>
+              <div class="terrain-attribute-field">
+                <span class="terrain-attribute-field-label">Format</span>
+                <strong id="terrain-attribute-format" class="terrain-attribute-field-value">-</strong>
+              </div>
+              <div class="terrain-attribute-field">
+                <span class="terrain-attribute-field-label">Tiles</span>
+                <strong id="terrain-attribute-tiles" class="terrain-attribute-field-value">-</strong>
+              </div>
+              <div class="terrain-attribute-field">
+                <span class="terrain-attribute-field-label">Flagged</span>
+                <strong id="terrain-attribute-occupied" class="terrain-attribute-field-value">-</strong>
+              </div>
+            </div>
+
+            <div class="section-divider">
+              <p class="terrain-attribute-legend-label control-note">TWFlags legend</p>
+              <div id="terrain-attribute-legend" class="terrain-attribute-legend"></div>
             </div>
           </div>
 
@@ -614,19 +650,163 @@
             <p>Objects: <span id="terrain-object-count">0</span></p>
           </div>
         </div>
+
+        <div id="sidebar-att" class="sidebar-view hidden">
+
+          <div class="control-section" id="att-load-section"
+            data-menu-description="Load a standalone ATT file directly without loading a full world."
+            data-menu-badge="Load">
+            <h3>Load ATT File</h3>
+            <div class="drop-zone" id="att-drop-zone" title="Load ATT file">
+              <p>Drop <strong>.att</strong> file here</p>
+              <input type="file" id="att-file-input" accept=".att" class="file-input-hidden" />
+            </div>
+          </div>
+
+          <div class="control-section" id="att-info-section"
+            data-menu-description="ATT file metadata and raw statistics for the loaded world."
+            data-menu-badge="Info">
+            <h3>ATT Metadata</h3>
+            <p id="att-inspector-status" class="control-note accent-note">No ATT data. Load a world or drop an ATT file.</p>
+            <div id="att-meta-grid" class="terrain-attribute-grid section-gap">
+              <div class="terrain-attribute-field">
+                <span class="terrain-attribute-field-label">World</span>
+                <strong id="att-meta-world" class="terrain-attribute-field-value">-</strong>
+              </div>
+              <div class="terrain-attribute-field">
+                <span class="terrain-attribute-field-label">Version</span>
+                <strong id="att-meta-version" class="terrain-attribute-field-value">-</strong>
+              </div>
+              <div class="terrain-attribute-field">
+                <span class="terrain-attribute-field-label">Format</span>
+                <strong id="att-meta-format" class="terrain-attribute-field-value">-</strong>
+              </div>
+              <div class="terrain-attribute-field">
+                <span class="terrain-attribute-field-label">Tiles</span>
+                <strong id="att-meta-tiles" class="terrain-attribute-field-value">-</strong>
+              </div>
+              <div class="terrain-attribute-field">
+                <span class="terrain-attribute-field-label">Flagged</span>
+                <strong id="att-meta-flagged" class="terrain-attribute-field-value">-</strong>
+              </div>
+            </div>
+          </div>
+
+          <div class="control-section" id="att-legend-section"
+            data-menu-description="Click the eye icon to hide or show a flag layer on the map. Active flags show tile counts."
+            data-menu-badge="Filter">
+            <h3>TWFlags</h3>
+            <div id="att-legend" class="att-legend"></div>
+          </div>
+
+        </div>
+
+        <div id="sidebar-ozj" class="sidebar-view hidden">
+
+          <div class="control-section" id="ozj-load-section"
+            data-menu-description="Load OZJ or OZT texture files to preview them in the browser."
+            data-menu-badge="Load">
+            <h3>Load Files</h3>
+            <div class="drop-zone" id="ozj-drop-zone" title="Load OZJ/OZT files">
+              <p>Drop <strong>.ozj / .ozt</strong> files here</p>
+              <input type="file" id="ozj-file-input" accept=".ozj,.ozt" multiple class="file-input-hidden" />
+            </div>
+            <div class="drop-zone drop-zone-folder" id="ozj-folder-drop-zone" title="Load folder">
+              <p>Drop or select <strong>folder</strong> with textures</p>
+              <input type="file" id="ozj-folder-input" webkitdirectory directory multiple class="file-input-hidden" />
+            </div>
+            <p id="ozj-load-status" class="control-note">No files loaded.</p>
+            <p id="ozj-stats" class="control-note"></p>
+            <button id="ozj-clear-btn" class="modern-btn btn-danger full-width space-top-xs">Clear All</button>
+          </div>
+
+          <div class="control-section" id="ozj-filter-section"
+            data-menu-description="Filter the browser by name or texture format."
+            data-menu-badge="Filter">
+            <h3>Filter</h3>
+            <input type="search" id="ozj-search" class="animation-dropdown full-width mb-sm" placeholder="Search by filename…">
+            <div class="row-inline">
+              <button class="modern-btn ozj-filter-btn active" data-format="all">All</button>
+              <button class="modern-btn ozj-filter-btn" data-format="ozj">OZJ</button>
+              <button class="modern-btn ozj-filter-btn" data-format="ozt">OZT</button>
+            </div>
+          </div>
+
+        </div>
+
+        <!-- ═══════════════════════════════════════════════════════ -->
+        <!-- Items BMD browser sidebar                              -->
+        <!-- ═══════════════════════════════════════════════════════ -->
+        <div id="sidebar-items" class="sidebar-view hidden">
+
+          <div class="control-section" id="items-load-section"
+            data-menu-description="Load an items.bmd file to browse and inspect all item definitions."
+            data-menu-badge="Load">
+            <h3>Load items.bmd</h3>
+            <div class="drop-zone" id="items-drop-zone" title="Load items.bmd">
+              <p>Drop <strong>items.bmd</strong> here</p>
+              <input type="file" id="items-file-input" accept=".bmd" class="file-input-hidden" />
+            </div>
+            <p id="items-load-status" class="control-note">No file loaded.</p>
+            <p id="items-stats" class="control-note"></p>
+            <button id="items-clear-btn" class="modern-btn btn-danger full-width space-top-xs">Clear</button>
+          </div>
+
+          <div class="control-section" id="items-filter-section"
+            data-menu-description="Filter by name or item category."
+            data-menu-badge="Filter">
+            <h3>Filter</h3>
+            <input type="search" id="items-search" class="animation-dropdown full-width mb-sm" placeholder="Search by name or index…">
+            <div class="bmd-kind-filter">
+              <button class="modern-btn items-kind-btn active" data-kind="-1">All</button>
+              <button class="modern-btn items-kind-btn" data-kind="0">Weapon</button>
+              <button class="modern-btn items-kind-btn" data-kind="1">Armor</button>
+              <button class="modern-btn items-kind-btn" data-kind="2">Potion</button>
+              <button class="modern-btn items-kind-btn" data-kind="4">Jewel</button>
+            </div>
+          </div>
+
+        </div>
+
+        <!-- ═══════════════════════════════════════════════════════ -->
+        <!-- Skills BMD browser sidebar                             -->
+        <!-- ═══════════════════════════════════════════════════════ -->
+        <div id="sidebar-skills" class="sidebar-view hidden">
+
+          <div class="control-section" id="skills-load-section"
+            data-menu-description="Load a skill.bmd file to browse and inspect all skill definitions."
+            data-menu-badge="Load">
+            <h3>Load skill.bmd</h3>
+            <div class="drop-zone" id="skills-drop-zone" title="Load skill.bmd">
+              <p>Drop <strong>skill.bmd</strong> here</p>
+              <input type="file" id="skills-file-input" accept=".bmd" class="file-input-hidden" />
+            </div>
+            <p id="skills-load-status" class="control-note">No file loaded.</p>
+            <p id="skills-stats" class="control-note"></p>
+            <button id="skills-clear-btn" class="modern-btn btn-danger full-width space-top-xs">Clear</button>
+          </div>
+
+          <div class="control-section" id="skills-filter-section"
+            data-menu-description="Filter skills by name or type."
+            data-menu-badge="Filter">
+            <h3>Filter</h3>
+            <input type="search" id="skills-search" class="animation-dropdown full-width mb-sm" placeholder="Search by name or ID…">
+            <div class="bmd-kind-filter">
+              <button class="modern-btn skills-type-btn active" data-type="-1">All</button>
+              <button class="modern-btn skills-type-btn" data-type="0">Attack</button>
+              <button class="modern-btn skills-type-btn" data-type="1">Buff</button>
+              <button class="modern-btn skills-type-btn" data-type="2">De-Buff</button>
+              <button class="modern-btn skills-type-btn" data-type="3">Friendly</button>
+            </div>
+          </div>
+
+        </div>
+
       </div>
+      <div class="sidebar-resize-handle" id="sidebar-resize-handle"></div>
     </aside>
 
     <main class="main-content view" id="view-bmd">
-      <div class="header">
-        <h1>MU BMD Viewer</h1>
-      </div>
-
-      <button class="sidebar-toggle" id="sidebar-toggle" title="Toggle Controls">
-        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-          <path d="M4 6H20M4 12H20M4 18H20" stroke="currentColor" stroke-width="2" stroke-linecap="round" />
-        </svg>
-      </button>
 
       <div id="canvas-container"></div>
 
@@ -640,37 +820,14 @@
       </aside>
 
       <div id="animations-container"></div>
-
-      <div id="status">Ready</div>
     </main>
 
     <main class="main-content view hidden" id="view-character">
-      <div class="header">
-        <h1>Character Test Scene</h1>
-      </div>
-
-      <button class="sidebar-toggle" id="character-sidebar-toggle" title="Toggle Controls">
-        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-          <path d="M4 6H20M4 12H20M4 18H20" stroke="currentColor" stroke-width="2" stroke-linecap="round" />
-        </svg>
-      </button>
-
       <div id="character-canvas-container"></div>
 
-      <div id="character-status">Ready</div>
     </main>
 
     <main class="main-content view hidden" id="view-terrain">
-      <div class="header">
-        <h1>World Viewer</h1>
-      </div>
-
-      <button class="sidebar-toggle" id="terrain-sidebar-toggle" title="Toggle Controls">
-        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-          <path d="M4 6H20M4 12H20M4 18H20" stroke="currentColor" stroke-width="2" stroke-linecap="round" />
-        </svg>
-      </button>
-
       <div id="terrain-canvas-container"></div>
 
       <aside id="terrain-object-editor-panel" class="terrain-object-editor-panel hidden">
@@ -710,8 +867,164 @@
         </div>
       </aside>
 
-      <div id="terrain-status-bar">Ready</div>
     </main>
+
+    <main class="main-content view hidden" id="view-att">
+      <div class="att-view-body">
+
+        <!-- Empty state -->
+        <div id="att-no-data" class="att-no-data">
+          <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" opacity="0.3"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M9 9h6M9 12h6M9 15h4"/></svg>
+          <p>No ATT data loaded.</p>
+          <p class="att-no-data-hint">Switch to the <strong>World</strong> tab and load a world first.</p>
+        </div>
+
+        <!-- Map canvas wrapper -->
+        <div id="att-map-wrap" class="att-map-wrap hidden">
+          <canvas id="att-map-canvas" width="256" height="256" class="att-map-canvas"></canvas>
+
+          <!-- Axis labels -->
+          <div class="att-axis att-axis-x">
+            <span>0</span><span>64</span><span>128</span><span>192</span><span>255</span>
+          </div>
+          <div class="att-axis att-axis-y">
+            <span>0</span><span>64</span><span>128</span><span>192</span><span>255</span>
+          </div>
+
+          <!-- Corner label -->
+          <div class="att-axis-corner">X / Z</div>
+        </div>
+
+      </div>
+
+      <!-- Floating tooltip (portal-level, fixed position) -->
+      <div id="att-tooltip" class="att-tooltip hidden"></div>
+    </main>
+
+    <main class="main-content view hidden" id="view-ozj">
+
+      <!-- Empty state -->
+      <div id="ozj-no-data" class="ozj-no-data">
+        <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" opacity="0.3"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18M9 21V9"/></svg>
+        <p>No files loaded.</p>
+        <p class="ozj-no-data-hint">Drop <strong>.ozj</strong> or <strong>.ozt</strong> files in the sidebar, or use the folder selector.</p>
+      </div>
+
+      <!-- Thumbnail grid -->
+      <div id="ozj-grid-wrap" class="ozj-grid-wrap hidden">
+        <div id="ozj-grid" class="ozj-grid"></div>
+      </div>
+
+      <!-- Full-size preview -->
+      <div id="ozj-preview-wrap" class="ozj-preview-wrap hidden">
+        <div class="ozj-preview-toolbar">
+          <button id="ozj-back-btn" class="modern-btn">← Grid</button>
+          <div class="ozj-preview-nav">
+            <button id="ozj-prev-btn" class="modern-btn ozj-nav-btn" disabled>‹</button>
+            <span id="ozj-preview-counter" class="ozj-preview-counter"></span>
+            <button id="ozj-next-btn" class="modern-btn ozj-nav-btn" disabled>›</button>
+          </div>
+        </div>
+        <div class="ozj-preview-area">
+          <img id="ozj-preview-img" class="ozj-preview-img" alt="" />
+        </div>
+        <div id="ozj-preview-meta" class="ozj-preview-meta"></div>
+      </div>
+
+    </main>
+
+    <!-- ═══════════════════════════════════════════════════════════ -->
+    <!-- Items BMD main view                                        -->
+    <!-- ═══════════════════════════════════════════════════════════ -->
+    <main class="main-content view hidden" id="view-items">
+
+      <!-- Empty state -->
+      <div id="items-no-data" class="bmd-browser-empty">
+        <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" opacity="0.3"><path d="M21 16V8a2 2 0 00-1-1.73l-7-4a2 2 0 00-2 0l-7 4A2 2 0 003 8v8a2 2 0 001 1.73l7 4a2 2 0 002 0l7-4A2 2 0 0021 16z"/></svg>
+        <p>No item data loaded.</p>
+        <p class="bmd-browser-empty-hint">Drop an <strong>items.bmd</strong> file in the sidebar.</p>
+      </div>
+
+      <!-- Table + detail split -->
+      <div id="items-table-wrap" class="bmd-browser-wrap hidden">
+        <div class="bmd-table-scroll">
+          <table class="bmd-table">
+            <thead>
+              <tr>
+                <th class="bmd-th bmd-tc--id">#</th>
+                <th class="bmd-th bmd-tc--name">Name</th>
+                <th class="bmd-th bmd-tc--kind">Kind</th>
+                <th class="bmd-th bmd-tc--size">Size</th>
+                <th class="bmd-th bmd-tc--dmg">Damage</th>
+                <th class="bmd-th bmd-tc--def">Defense</th>
+                <th class="bmd-th bmd-tc--lvl">Req Lvl</th>
+              </tr>
+            </thead>
+            <tbody id="items-table-body"></tbody>
+          </table>
+        </div>
+        <div id="items-detail" class="bmd-detail hidden"></div>
+      </div>
+
+    </main>
+
+    <!-- ═══════════════════════════════════════════════════════════ -->
+    <!-- Skills BMD main view                                       -->
+    <!-- ═══════════════════════════════════════════════════════════ -->
+    <main class="main-content view hidden" id="view-skills">
+
+      <!-- Empty state -->
+      <div id="skills-no-data" class="bmd-browser-empty">
+        <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" opacity="0.3"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
+        <p>No skill data loaded.</p>
+        <p class="bmd-browser-empty-hint">Drop a <strong>skill.bmd</strong> file in the sidebar.</p>
+      </div>
+
+      <!-- Table + detail split -->
+      <div id="skills-table-wrap" class="bmd-browser-wrap hidden">
+        <div class="bmd-table-scroll">
+          <table class="bmd-table">
+            <thead>
+              <tr>
+                <th class="bmd-th bmd-tc--id">#</th>
+                <th class="bmd-th bmd-tc--name">Name</th>
+                <th class="bmd-th bmd-tc--dmg">Damage</th>
+                <th class="bmd-th bmd-tc--mana">Mana</th>
+                <th class="bmd-th bmd-tc--ag">AG</th>
+                <th class="bmd-th bmd-tc--lvl">Req Lvl</th>
+                <th class="bmd-th bmd-tc--type">Type</th>
+              </tr>
+            </thead>
+            <tbody id="skills-table-body"></tbody>
+          </table>
+        </div>
+        <div id="skills-detail" class="bmd-detail hidden"></div>
+      </div>
+
+    </main>
+
+    </div><!-- /.app-body -->
+
+    <div class="log-bar" id="log-bar">
+      <div class="log-bar-resize-handle" id="log-bar-resize-handle"></div>
+      <div class="log-bar-header">
+        <span class="log-bar-label">Log</span>
+        <div class="log-bar-status">
+          <div id="status">Ready</div>
+          <div id="character-status" class="hidden">Ready</div>
+          <div id="terrain-status-bar" class="hidden">Ready</div>
+          <div id="att-status-bar" class="hidden">ATT Inspector</div>
+          <div id="ozj-status-bar" class="hidden">OZJ Browser</div>
+          <div id="items-status-bar" class="hidden">Item Browser</div>
+          <div id="skills-status-bar" class="hidden">Skill Browser</div>
+        </div>
+        <div class="log-bar-controls">
+          <button class="log-bar-btn" id="log-clear-btn" title="Wyczyść log">Clear</button>
+          <button class="log-bar-btn log-bar-btn--reset" id="layout-reset-btn" title="Przywróć domyślne rozmiary paneli">Reset Layout</button>
+        </div>
+      </div>
+      <div class="log-output" id="log-output"></div>
+    </div>
 
     <div id="presentation-overlay" class="presentation-overlay hidden"></div>
     <button id="presentation-exit-btn" class="presentation-exit hidden">Exit Presentation</button>
