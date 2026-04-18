@@ -11,13 +11,13 @@
   <link
     href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=Oxanium:wght@500;600;700&family=Space+Grotesk:wght@400;500;600;700&display=swap"
     rel="stylesheet">
-  <script type="module" crossorigin src="/muonline-bmd-viewer/app/assets/index-AMH4womO.js"></script>
+  <script type="module" crossorigin src="/muonline-bmd-viewer/app/assets/index-mntx4Y2o.js"></script>
   <link rel="modulepreload" crossorigin href="/muonline-bmd-viewer/app/assets/rolldown-runtime-B1FJdls4.js">
   <link rel="modulepreload" crossorigin href="/muonline-bmd-viewer/app/assets/vendor-CyptC6jy.js">
   <link rel="modulepreload" crossorigin href="/muonline-bmd-viewer/app/assets/vendor-three-webgpu-CohLeNjA.js">
   <link rel="modulepreload" crossorigin href="/muonline-bmd-viewer/app/assets/vendor-three-DkzL8DDT.js">
   <link rel="modulepreload" crossorigin href="/muonline-bmd-viewer/app/assets/vendor-three-C4p48M8k.js">
-  <link rel="stylesheet" crossorigin href="/muonline-bmd-viewer/app/assets/index-CWwvf_Ma.css">
+  <link rel="stylesheet" crossorigin href="/muonline-bmd-viewer/app/assets/index-CTQxHlVy.css">
 </head>
 
 <body>
@@ -37,6 +37,7 @@
         <button class="tab-btn" data-view="items">Items</button>
         <button class="tab-btn" data-view="skills">Skills</button>
         <button class="tab-btn" data-view="gfx">GFx</button>
+        <button class="tab-btn" data-view="sound">Sound</button>
       </div>
       <div class="top-bar-actions">
         <div class="sidebar-view-badge" id="sidebar-view-badge">Model workspace</div>
@@ -559,6 +560,8 @@
               <p class="terrain-attribute-legend-label control-note">TWFlags legend</p>
               <div id="terrain-attribute-legend" class="terrain-attribute-legend"></div>
             </div>
+
+            <button id="att-overlay-toggle" class="modern-btn full-width space-top-sm">Show ATT Overlay</button>
           </div>
 
           <div class="control-section" id="terrain-navigation-section"
@@ -858,6 +861,33 @@
 
         </div>
 
+        <!-- ═══════════════════════════════════════════════════════ -->
+        <!-- Sound browser sidebar                                  -->
+        <!-- ═══════════════════════════════════════════════════════ -->
+        <div id="sidebar-sound" class="sidebar-view hidden">
+
+          <div class="control-section" id="sound-load-section"
+            data-menu-description="Load a folder of sound files to browse and play them."
+            data-menu-badge="Load">
+            <h3>Load Sounds</h3>
+            <div class="drop-zone drop-zone-folder" id="sound-folder-drop-zone" title="Load folder with sound files">
+              <p>Drop or select <strong>folder</strong> with .ogg / .wav files</p>
+              <input type="file" id="sound-folder-input" webkitdirectory directory multiple class="file-input-hidden" />
+            </div>
+            <button id="sound-folder-btn" class="modern-btn full-width space-top-xs">Browse Folder</button>
+            <p id="sound-load-status" class="control-note">No files loaded.</p>
+            <button id="sound-clear-btn" class="modern-btn btn-danger full-width space-top-xs">Clear All</button>
+          </div>
+
+          <div class="control-section" id="sound-filter-section"
+            data-menu-description="Filter the browser by filename."
+            data-menu-badge="Filter">
+            <h3>Filter</h3>
+            <input type="search" id="sound-search" class="animation-dropdown full-width" placeholder="Search by filename…">
+          </div>
+
+        </div>
+
       </div>
       <div class="sidebar-resize-handle" id="sidebar-resize-handle"></div>
     </aside>
@@ -1103,6 +1133,44 @@
 
     </main>
 
+    <!-- ═══════════════════════════════════════════════════════════ -->
+    <!-- Sound browser main view                                    -->
+    <!-- ═══════════════════════════════════════════════════════════ -->
+    <main class="main-content view hidden" id="view-sound">
+
+      <!-- Empty state -->
+      <div id="sound-no-data" class="bmd-browser-empty">
+        <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" opacity="0.3"><path d="M9 18v3H5v-3m10-13v13m5-13v13M7 21h10"/></svg>
+        <p>No sound files loaded.</p>
+        <p class="bmd-browser-empty-hint">Drop a folder with <strong>.ogg</strong> or <strong>.wav</strong> files in the sidebar.</p>
+      </div>
+
+      <!-- File list + player -->
+      <div id="sound-list-wrap" class="sound-list-wrap hidden">
+        <div id="sound-list" class="sound-list"></div>
+        <div id="sound-player-wrap" class="sound-player-wrap">
+          <div id="sound-file-name" class="sound-file-name">No file selected</div>
+          <div class="sound-controls">
+            <button id="sound-play-btn" class="modern-btn">Play</button>
+            <button id="sound-stop-btn" class="modern-btn">Stop</button>
+            <div class="sound-time">
+              <span id="sound-current-time">0:00</span>
+              <span class="sound-time-sep">/</span>
+              <span id="sound-duration">0:00</span>
+            </div>
+          </div>
+          <div class="sound-progress-wrap">
+            <progress id="sound-progress-bar" class="sound-progress-bar" value="0" max="100"></progress>
+          </div>
+          <div class="sound-volume-wrap">
+            <label for="sound-volume-slider" class="sound-volume-label">Volume</label>
+            <input id="sound-volume-slider" type="range" class="modern-slider" min="0" max="1" step="0.01" value="0.7">
+          </div>
+        </div>
+      </div>
+
+    </main>
+
     </div><!-- /.app-body -->
 
     <div class="log-bar" id="log-bar">
@@ -1118,6 +1186,7 @@
           <div id="items-status-bar" class="hidden">Item Browser</div>
           <div id="skills-status-bar" class="hidden">Skill Browser</div>
           <div id="gfx-status-bar" class="hidden">GFx Browser</div>
+          <div id="sound-status-bar" class="hidden">Sound Browser</div>
         </div>
         <div class="log-bar-controls">
           <button class="log-bar-btn" id="log-clear-btn" title="Wyczyść log">Clear</button>
