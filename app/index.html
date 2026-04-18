@@ -11,13 +11,13 @@
   <link
     href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=Oxanium:wght@500;600;700&family=Space+Grotesk:wght@400;500;600;700&display=swap"
     rel="stylesheet">
-  <script type="module" crossorigin src="/muonline-bmd-viewer/app/assets/index-CwvdNHf2.js"></script>
+  <script type="module" crossorigin src="/muonline-bmd-viewer/app/assets/index-AMH4womO.js"></script>
   <link rel="modulepreload" crossorigin href="/muonline-bmd-viewer/app/assets/rolldown-runtime-B1FJdls4.js">
   <link rel="modulepreload" crossorigin href="/muonline-bmd-viewer/app/assets/vendor-CyptC6jy.js">
-  <link rel="modulepreload" crossorigin href="/muonline-bmd-viewer/app/assets/vendor-three-webgpu-BPU3GxCk.js">
-  <link rel="modulepreload" crossorigin href="/muonline-bmd-viewer/app/assets/vendor-three-DKHbxyJh.js">
-  <link rel="modulepreload" crossorigin href="/muonline-bmd-viewer/app/assets/vendor-three-D4PSlf23.js">
-  <link rel="stylesheet" crossorigin href="/muonline-bmd-viewer/app/assets/index-C7_Zh3S3.css">
+  <link rel="modulepreload" crossorigin href="/muonline-bmd-viewer/app/assets/vendor-three-webgpu-CohLeNjA.js">
+  <link rel="modulepreload" crossorigin href="/muonline-bmd-viewer/app/assets/vendor-three-DkzL8DDT.js">
+  <link rel="modulepreload" crossorigin href="/muonline-bmd-viewer/app/assets/vendor-three-C4p48M8k.js">
+  <link rel="stylesheet" crossorigin href="/muonline-bmd-viewer/app/assets/index-CWwvf_Ma.css">
 </head>
 
 <body>
@@ -36,6 +36,7 @@
         <button class="tab-btn" data-view="ozj">OZJ</button>
         <button class="tab-btn" data-view="items">Items</button>
         <button class="tab-btn" data-view="skills">Skills</button>
+        <button class="tab-btn" data-view="gfx">GFx</button>
       </div>
       <div class="top-bar-actions">
         <div class="sidebar-view-badge" id="sidebar-view-badge">Model workspace</div>
@@ -632,6 +633,13 @@
               <p>Position: <span id="terrain-selected-position">-</span></p>
               <p>Rotation: <span id="terrain-selected-rotation">-</span></p>
               <p>Scale: <span id="terrain-selected-scale">-</span></p>
+              <div id="terrain-transform-gizmo-controls" class="terrain-transform-gizmo-controls space-top-sm">
+                <p class="control-note accent-note">Drag the gizmo in the render to move or rotate this object.</p>
+                <div class="row-inline terrain-transform-mode-row">
+                  <button class="modern-btn terrain-transform-mode-btn active" type="button" data-terrain-transform-mode="translate">Move Axes</button>
+                  <button class="modern-btn terrain-transform-mode-btn" type="button" data-terrain-transform-mode="rotate">Rotate Arcs</button>
+                </div>
+              </div>
               <div class="stack-sm space-top-sm">
                 <button id="terrain-focus-object-btn" class="modern-btn btn-primary">Focus</button>
                 <button id="terrain-isolate-object-btn" class="modern-btn">Hide Others</button>
@@ -802,6 +810,54 @@
 
         </div>
 
+        <!-- ═══════════════════════════════════════════════════════ -->
+        <div id="sidebar-gfx" class="sidebar-view hidden">
+
+          <div class="control-section"
+            data-menu-description="Load an OZG/GFX/SWF UI file for the stage render."
+            data-menu-badge="OZG">
+            <h3>OZG Render</h3>
+            <div class="drop-zone" id="gfx-ozg-drop" title="Drop .ozg / .gfx / .swf files or a folder">
+              <p>Drop <strong>.ozg</strong> / <strong>.gfx</strong> / <strong>.swf</strong> file or folder</p>
+            </div>
+            <div class="gfx-load-actions">
+              <button id="gfx-ozg-file-btn" class="modern-btn" type="button">Load OZG File</button>
+              <button id="gfx-ozg-folder-btn" class="modern-btn" type="button">Load OZG Folder</button>
+            </div>
+            <input type="file" id="gfx-ozg-file-input" accept=".ozg,.gfx,.swf" class="file-input-hidden" />
+            <input type="file" id="gfx-ozg-folder-input" webkitdirectory directory multiple class="file-input-hidden" />
+          </div>
+
+          <div class="control-section"
+            data-menu-description="Load OZD textures directly as an image gallery."
+            data-menu-badge="OZD">
+            <h3>OZD Gallery</h3>
+            <div class="drop-zone" id="gfx-ozd-drop" title="Drop .ozd files or a folder">
+              <p>Drop <strong>.ozd</strong> file or folder</p>
+            </div>
+            <div class="gfx-load-actions">
+              <button id="gfx-ozd-file-btn" class="modern-btn" type="button">Load OZD File</button>
+              <button id="gfx-ozd-folder-btn" class="modern-btn" type="button">Load OZD Folder</button>
+            </div>
+            <input type="file" id="gfx-ozd-file-input" accept=".ozd" class="file-input-hidden" />
+            <input type="file" id="gfx-ozd-folder-input" webkitdirectory directory multiple class="file-input-hidden" />
+            <p id="gfx-stats" class="control-note hidden"></p>
+            <button id="gfx-clear-btn" class="modern-btn btn-danger full-width space-top-xs">Clear</button>
+          </div>
+
+          <div class="control-section"
+            data-menu-description="Filter images and tags by name or type ID."
+            data-menu-badge="Filter">
+            <h3>Filter</h3>
+            <input type="search" id="gfx-search" class="animation-dropdown full-width" placeholder="Search image, tag name or ID…">
+            <label class="gfx-toggle-row space-top-xs">
+              <input type="checkbox" id="gfx-show-tags-toggle">
+              <span>Show SWF tag table</span>
+            </label>
+          </div>
+
+        </div>
+
       </div>
       <div class="sidebar-resize-handle" id="sidebar-resize-handle"></div>
     </aside>
@@ -862,6 +918,7 @@
 
         <div class="section-divider stack-sm">
           <button id="terrain-editor-save-btn" class="modern-btn btn-primary full-width">Save Object Settings</button>
+          <button id="terrain-export-world-obj-btn" class="modern-btn full-width">Export World OBJ</button>
           <button id="terrain-editor-reset-btn" class="modern-btn btn-danger full-width">Reset Object Settings</button>
           <p id="terrain-editor-status" class="control-note"></p>
         </div>
@@ -1003,6 +1060,49 @@
 
     </main>
 
+    <!-- GFx Browser main view                                         -->
+    <!-- ═════════════════════════════════════════════════════════════ -->
+    <main class="main-content view hidden" id="view-gfx">
+
+      <!-- Empty state -->
+      <div id="gfx-no-data" class="bmd-browser-empty">
+        <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" opacity="0.3"><rect x="2" y="3" width="20" height="14" rx="2"/><path d="M8 21h8M12 17v4"/></svg>
+        <p>No GFx file loaded.</p>
+        <p class="bmd-browser-empty-hint">Drop an <strong>.ozg</strong>, <strong>.gfx</strong>, <strong>.swf</strong> or <strong>.ozd</strong> file in the sidebar.</p>
+      </div>
+
+      <!-- Visual GFx stage render -->
+      <div id="gfx-stage-wrap" class="gfx-stage-wrap hidden">
+        <div class="gfx-stage-scroll">
+          <canvas id="gfx-stage-canvas" class="gfx-stage-canvas"></canvas>
+        </div>
+        <div id="gfx-stage-note" class="gfx-stage-note"></div>
+      </div>
+
+      <!-- Bitmap/resource gallery -->
+      <div id="gfx-bitmap-gallery" class="gfx-bitmap-gallery hidden"></div>
+
+      <!-- Tag table + detail split -->
+      <div id="gfx-table-wrap" class="bmd-browser-wrap hidden">
+        <div class="bmd-table-scroll">
+          <table class="bmd-table">
+            <thead>
+              <tr>
+                <th class="bmd-th bmd-tc--id">Type</th>
+                <th class="bmd-th bmd-tc--name">Tag Name</th>
+                <th class="bmd-th bmd-tc--size">Size</th>
+                <th class="bmd-th bmd-tc-offset">Offset</th>
+              </tr>
+            </thead>
+            <tbody id="gfx-tag-body"></tbody>
+          </table>
+        </div>
+      </div>
+
+      <div id="gfx-detail" class="bmd-detail hidden"></div>
+
+    </main>
+
     </div><!-- /.app-body -->
 
     <div class="log-bar" id="log-bar">
@@ -1017,6 +1117,7 @@
           <div id="ozj-status-bar" class="hidden">OZJ Browser</div>
           <div id="items-status-bar" class="hidden">Item Browser</div>
           <div id="skills-status-bar" class="hidden">Skill Browser</div>
+          <div id="gfx-status-bar" class="hidden">GFx Browser</div>
         </div>
         <div class="log-bar-controls">
           <button class="log-bar-btn" id="log-clear-btn" title="Wyczyść log">Clear</button>
