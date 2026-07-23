@@ -21,6 +21,12 @@ contextBridge.exposeInMainWorld('electronAPI', {
   // Read only files that exist, silently skipping missing paths
   readExistingFiles: (filePaths) => ipcRenderer.invoke('fs:readExistingFiles', filePaths),
 
+  // Resolve a dropped file or directory to the nearest valid Data root
+  resolveDataRoot: (candidatePaths) => ipcRenderer.invoke('fs:resolveDataRoot', candidatePaths),
+
+  // Read a file below the Data root with case-insensitive path resolution
+  readDataFile: (dataRootPath, relativePath) => ipcRenderer.invoke('fs:readDataFile', dataRootPath, relativePath),
+
   // Scan Data directory for World{N} subfolders
   scanWorldFolders: (dataRootPath) => ipcRenderer.invoke('fs:scanWorldFolders', dataRootPath),
 

@@ -2,6 +2,7 @@
 const { app, BrowserWindow, dialog, ipcMain, session } = require('electron');
 const path = require('path');
 const fs = require('fs').promises;
+const { resolveDataFilePath, resolveDataRootFromPaths } = require('./data-root-resolver');
 
 let mainWindow;
 const missingReadFiles = new Set();
@@ -178,6 +179,36 @@ ipcMain.handle('fs:readFile', async (event, filePath) => {
     }
     console.error('[fs:readFile] Error reading file:', error);
     throw error;
+  }
+});
+
+ipcMain.handle('fs:resolveDataRoot', async (event, candidatePaths) => {
+  try {
+    return await resolveDataRootFromPaths(candidatePaths);
+  } catch (error) {
+    console.warn('[fs:resolveDataRoot] Failed to resolve dropped Data folder:', error);
+    return null;
+  }
+});
+
+ipcMain.handle('fs:readDataFile', async (event, dataRootPath, relativePath) => {
+  try {
+    const resolvedPath = await resolveDataFilePath(dataRootPath, relativePath);
+    if (!resolvedPath) {
+      return null;
+    }
+
+    const buffer = await fs.readFile(resolvedPath);
+    return {
+      name: path.basename(resolvedPath),
+      data: buffer.buffer.slice(buffer.byteOffset, buffer.byteOffset + buffer.byteLength),
+    };
+  } catch (error) {
+    if (isMissingPathError(error)) {
+      return null;
+    }
+    console.warn('[fs:readDataFile] Failed to read Data file:', error);
+    return null;
   }
 });
 

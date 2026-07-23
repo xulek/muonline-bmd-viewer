@@ -4,7 +4,15 @@ import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
 import { RoomEnvironment } from 'three/examples/jsm/environments/RoomEnvironment.js';
 import { BMDLoader, convertTgaToDataUrl } from './bmd-loader';
 import { convertOzjToDataUrl } from './ozj-loader';
-import { isElectron, openDirectoryDialog, readFileFromPath, searchTextures } from './electron-helper';
+import {
+  getFilePathFromFile,
+  isElectron,
+  openDirectoryDialog,
+  readDataFileFromRoot,
+  readFileFromPath,
+  resolveDataRootFromPaths,
+  searchTextures,
+} from './electron-helper';
 import type { CharacterPreset, CharacterSessionState } from './explorer-types';
 import { createId } from './explorer-store';
 import { parseItemBmd, ItemDefinition } from './item-bmd';
@@ -18,6 +26,7 @@ import {
   type CharacterItemAnimationPlayback,
 } from './utils/CharacterItemAnimations';
 import { applyBlendModeToMaterial, detectBlendModeFromTexture, type BlendHeuristicResult } from './utils/TextureBlendHeuristics';
+import { collectDroppedFolderFiles, mapSelectedFolderFiles, type DroppedFolderFile } from './utils/FolderDrop';
 import GIF from 'gif.js';
 import gifWorkerUrl from 'gif.js/dist/gif.worker.js?url';
 
@@ -601,15 +610,15 @@ export class CharacterTestScene {
       zone.addEventListener('drop', e => {
         e.preventDefault();
         zone.classList.remove('drag-over');
-        if (e.dataTransfer?.files && e.dataTransfer.files.length > 0) {
-          this.loadDataFolder(Array.from(e.dataTransfer.files));
+        if (e.dataTransfer) {
+          void this.loadDroppedDataFolder(e.dataTransfer);
         }
       });
 
       input.addEventListener('change', e => {
         const list = (e.target as HTMLInputElement).files;
         if (list?.length) {
-          this.loadDataFolder(Array.from(list));
+          void this.loadDataFolder(mapSelectedFolderFiles(Array.from(list)));
         }
       });
     };
@@ -669,14 +678,39 @@ export class CharacterTestScene {
     if (isElectron()) {
       const folderPath = await openDirectoryDialog();
       if (folderPath) {
-        this.loadDataFolder(folderPath);
+        await this.loadDataFolder(folderPath);
       }
     } else {
       input.click();
     }
   }
 
-  private async loadDataFolder(source: string | File[]) {
+  private async loadDroppedDataFolder(dataTransfer: DataTransfer): Promise<void> {
+    const droppedFiles = Array.from(dataTransfer.files || []);
+
+    if (isElectron() && droppedFiles.length > 0) {
+      const droppedPaths = droppedFiles
+        .map(file => getFilePathFromFile(file))
+        .filter((filePath): filePath is string => Boolean(filePath));
+
+      const dataRootPath = await resolveDataRootFromPaths(droppedPaths);
+      if (dataRootPath) {
+        await this.loadDataFolder(dataRootPath);
+        return;
+      }
+    }
+
+    try {
+      const files = await collectDroppedFolderFiles(dataTransfer);
+      await this.loadDataFolder(files);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      this.dataStatus.textContent = 'Failed to read dropped Data folder.';
+      this.statusEl.textContent = message;
+    }
+  }
+
+  private async loadDataFolder(source: string | DroppedFolderFile[]) {
     this.dataStatus.textContent = 'Loading Data folder...';
     this.statusEl.textContent = 'Loading Data folder...';
 
@@ -692,10 +726,12 @@ export class CharacterTestScene {
     this.characterOffset.set(0, 0, 0);
 
     if (typeof source === 'string') {
-      this.dataRootPath = source;
+      this.dataRootPath = isElectron()
+        ? await resolveDataRootFromPaths([source]) || source
+        : source;
       const ok = await this.loadItemDatabase();
       if (ok) {
-        this.dataStatus.textContent = `Loaded Data folder: ${source}`;
+        this.dataStatus.textContent = `Loaded Data folder: ${this.dataRootPath}`;
         this.statusEl.textContent = 'Item database loaded.';
         this.applyPendingSessionState();
         this.scheduleRebuild();
@@ -712,14 +748,16 @@ export class CharacterTestScene {
       return;
     }
 
-    const firstPath = (files[0] as any).webkitRelativePath || files[0].name;
+    const firstPath = files[0].relativePath.replace(/\\/g, '/');
     const rootName = firstPath.split('/')[0];
 
-    for (const file of files) {
-      const rel = (file as any).webkitRelativePath || file.name;
-      const trimmed = rel.startsWith(rootName + '/') ? rel.slice(rootName.length + 1) : rel;
+    for (const entry of files) {
+      const rel = entry.relativePath.replace(/\\/g, '/');
+      const trimmed = rel.toLowerCase().startsWith(`${rootName.toLowerCase()}/`)
+        ? rel.slice(rootName.length + 1)
+        : rel;
       const normalized = normalizeDataPath(trimmed);
-      this.dataFiles.set(normalized, file);
+      this.dataFiles.set(normalized, entry.file);
 
       const ext = getExtension(normalized);
       if (TEXTURE_EXTENSIONS.includes(ext)) {
@@ -1592,13 +1630,15 @@ export class CharacterTestScene {
     }
 
     if (this.dataRootPath && isElectron()) {
-      const fullPath = this.joinDataPath(normalized);
       if (this.missingDataPaths.has(normalized)) {
         return null;
       }
       try {
-        const data = await readFileFromPath(fullPath);
-        if (!data) return null;
+        const data = await readDataFileFromRoot(this.dataRootPath, normalized);
+        if (!data) {
+          this.missingDataPaths.add(normalized);
+          return null;
+        }
         return { name: data.name, buffer: data.data };
       } catch (error) {
         this.missingDataPaths.add(normalized);
@@ -1607,14 +1647,6 @@ export class CharacterTestScene {
     }
 
     return null;
-  }
-
-  private joinDataPath(relativePath: string): string {
-    if (!this.dataRootPath) return relativePath;
-    const separator = this.dataRootPath.includes('\\') ? '\\' : '/';
-    const trimmedRoot = this.dataRootPath.replace(/[\\/]+$/, '');
-    const trimmedRel = relativePath.replace(/[\\/]+/g, separator);
-    return `${trimmedRoot}${separator}${trimmedRel}`;
   }
 
   private populateAnimationSelect(count: number, selectedIndex: number | null = null) {

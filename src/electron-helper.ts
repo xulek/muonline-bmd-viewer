@@ -31,6 +31,8 @@ interface ElectronAPI {
   openDirectory: () => Promise<string | null>;
   readFile: (filePath: string) => Promise<{ name: string; data: ArrayBuffer } | null>;
   readExistingFiles: (filePaths: string[]) => Promise<Array<{ name: string; data: ArrayBuffer }>>;
+  resolveDataRoot: (candidatePaths: string[]) => Promise<string | null>;
+  readDataFile: (dataRootPath: string, relativePath: string) => Promise<{ name: string; data: ArrayBuffer } | null>;
   scanWorldFolders: (dataRootPath: string) => Promise<number[]>;
   readTerrainWorldFiles: (dataRootPath: string, worldNumber: number) => Promise<TerrainWorldFileData[]>;
   searchTextures: (startPath: string, requiredTextures: string[]) => Promise<Record<string, string[]>>;
@@ -108,6 +110,23 @@ export async function readFileFromPath(filePath: string): Promise<{ name: string
     return null;
   }
   return window.electronAPI.readFile(filePath);
+}
+
+export async function resolveDataRootFromPaths(candidatePaths: string[]): Promise<string | null> {
+  if (!isElectron() || !window.electronAPI?.resolveDataRoot) {
+    return null;
+  }
+  return window.electronAPI.resolveDataRoot(candidatePaths);
+}
+
+export async function readDataFileFromRoot(
+  dataRootPath: string,
+  relativePath: string,
+): Promise<{ name: string; data: ArrayBuffer } | null> {
+  if (!isElectron() || !window.electronAPI?.readDataFile) {
+    return null;
+  }
+  return window.electronAPI.readDataFile(dataRootPath, relativePath);
 }
 
 /**
