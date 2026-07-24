@@ -108,13 +108,6 @@ function initLogBarResize(logBar: HTMLElement, sizes: PanelSizes): void {
     });
 }
 
-function escapeHtml(str: string): string {
-    return str
-        .replace(/&/g, '&amp;')
-        .replace(/</g, '&lt;')
-        .replace(/>/g, '&gt;');
-}
-
 function formatArg(arg: unknown): string {
     if (typeof arg === 'string') return arg;
     if (arg instanceof Error) return `${arg.name}: ${arg.message}`;
@@ -129,9 +122,15 @@ function initConsoleInterception(output: HTMLElement): void {
         const entry = document.createElement('div');
         entry.className = `log-entry log-entry--${level}`;
         const time = new Date().toLocaleTimeString('pl-PL', { hour12: false });
-        entry.innerHTML =
-            `<span class="log-time">${time}</span>` +
-            `<span class="log-msg">${escapeHtml(text)}</span>`;
+        const timeEl = document.createElement('span');
+        timeEl.className = 'log-time';
+        timeEl.textContent = time;
+
+        const messageEl = document.createElement('span');
+        messageEl.className = 'log-msg';
+        messageEl.textContent = text;
+
+        entry.append(timeEl, messageEl);
         output.appendChild(entry);
 
         while (output.children.length > MAX_ENTRIES) {

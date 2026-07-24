@@ -199,7 +199,7 @@ export function mergeViewerSessionState(raw: unknown): ViewerSessionState {
     activeView: (input.activeView === 'bmd' || input.activeView === 'character' || input.activeView === 'terrain'
       || input.activeView === 'att' || input.activeView === 'ozj'
       || input.activeView === 'items' || input.activeView === 'skills'
-      || input.activeView === 'gfx')
+      || input.activeView === 'gfx' || input.activeView === 'sound')
       ? input.activeView
       : defaults.activeView,
     presentationMode: coerceBoolean(input.presentationMode, defaults.presentationMode),

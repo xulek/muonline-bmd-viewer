@@ -101,6 +101,7 @@ class App {
     private isAutoRotating = true;
     private userIsInteracting = false;
     private isActive = true;
+    private animationFrameHandle: number | null = null;
 
     // ### NEW ### Diagnostic elements
     private diagActionsCountEl!: HTMLElement;      // number of clips / actions
@@ -114,6 +115,9 @@ class App {
     private lastFrameTime = 0;
     private frameCount = 0;
     private fps = 0;
+    private lastDiagnosticDomUpdate = 0;
+    private diagnosticBoneCount = 0;
+    private diagnosticMeshCount = 0;
 
     // --- Frame lock ---
     private lockFrameCheckbox!: HTMLInputElement;
@@ -128,6 +132,7 @@ class App {
     private attachments: THREE.Group[] = [];
     private currentAttachment: THREE.Group | null = null;
     private currentAttachmentFile: File | null = null;
+    private attachmentLoadToken = 0;
     private mainSkeleton: THREE.Skeleton | null = null;
 
     // Helpers / debug visuals
@@ -146,6 +151,7 @@ class App {
     private rendererActiveBackend: RendererBackendActive = 'webgl';
     private rendererReady = false;
     private rendererSwapToken = 0;
+    private modelLoadToken = 0;
     private containerEl!: HTMLElement;
     private resizeHandler: (() => void) | null = null;
     private rendererBackendSelect: HTMLSelectElement | null = null;
@@ -160,6 +166,8 @@ class App {
     private thumbnailMaterial: THREE.MeshPhongMaterial | null = null;
     private folderPanelEl: HTMLElement | null = null;
     private thumbnailGenId = 0;
+    private readonly thumbnailCacheLimit = 200;
+    private readonly thumbnailTextureCacheLimit = 200;
     private thumbnailCache = new Map<string, string>();
     private thumbnailTexDataUrlCache = new Map<string, string>();
     private thumbnailPending = new Set<number>();
@@ -172,13 +180,17 @@ class App {
         this.rendererBackendPreference = initialRendererBackend;
         this.initThree();
         this.initUI();
-        this.animate(performance.now());
+        this.startAnimationLoop();
     }
 
     public setActive(active: boolean) {
         this.isActive = active;
         if (active) {
             this.timer.reset();
+            this.startAnimationLoop();
+        } else if (this.animationFrameHandle !== null) {
+            cancelAnimationFrame(this.animationFrameHandle);
+            this.animationFrameHandle = null;
         }
     }
 
@@ -549,6 +561,7 @@ class App {
         this.updateRendererBackendStatus(`Renderer: switching to ${preference === 'auto' ? 'Auto' : preference}…`);
 
         if (shouldReloadModel) {
+            ++this.modelLoadToken;
             this.clearScene();
             this.loadedGroup = null;
             this.requiredTextures = [];
@@ -593,6 +606,9 @@ class App {
         this.setBrightness(parseFloat((document.getElementById('brightness-slider') as HTMLInputElement | null)?.value || '2') || 2);
         if (shouldReloadModel) {
             await this.reloadCurrentModelAfterRendererSwitchWithAssets(reloadTextureFiles, attachmentFile, attachmentBoneIndex);
+        }
+        if (token !== this.rendererSwapToken) {
+            return;
         }
         this.rendererReady = true;
 
@@ -1455,37 +1471,51 @@ class App {
     // MODEL LOADING - Modified
     //----------------------------------------------------------
     private async loadAndDisplayModel(options?: { textureFiles?: File[]; suppressRecent?: boolean; skipClear?: boolean }) {
-        if (!this.bmdFile) return;
+        const modelFile = this.bmdFile;
+        if (!modelFile) return;
+
+        const loadToken = ++this.modelLoadToken;
+        const isCurrent = () => loadToken === this.modelLoadToken && this.bmdFile === modelFile;
         const textureFiles = options?.textureFiles;
         const suppressRecent = options?.suppressRecent ?? false;
         const skipClear = options?.skipClear ?? false;
+        const recentContext = this.pendingRecentModelContext;
         const statusEl = document.getElementById('status')!;
         statusEl.textContent = 'Loading model…';
         logger.groupDebug('loadAndDisplayModel()');
         logger.time('loadAndDisplayModel');
 
-        // Reset state
         if (!skipClear) {
             this.clearScene();
-            this.loadedGroup = null;
             this.requiredTextures = [];
         }
         document.getElementById('texture-controls')!.style.display = 'none';
 
+        let pendingGroup: THREE.Group | null = null;
         try {
-            const bmdBuf = await this.bmdFile.arrayBuffer();
-            const { group, requiredTextures } = await this.bmdLoader.load(bmdBuf);
+            const bmdBuffer = await modelFile.arrayBuffer();
+            if (!isCurrent()) return;
+
+            const { group, requiredTextures } = await this.bmdLoader.load(bmdBuffer);
+            pendingGroup = group;
+            if (!isCurrent()) {
+                Disposer.disposeObject3D(group, false);
+                pendingGroup = null;
+                return;
+            }
+
             group.name = 'bmd_model';
             this.scene.add(group);
             this.loadedGroup = group;
+            pendingGroup = null;
             this.requiredTextures = requiredTextures;
             this.applySceneMaterialTuning(group);
             this.updateStageForObject(group);
 
-            // Save main model skeleton for attachments
             const mainSkinnedMesh = group.getObjectByProperty('type', 'SkinnedMesh') as THREE.SkinnedMesh | undefined;
             this.mainSkeleton = mainSkinnedMesh?.skeleton || null;
 
+            this.refreshDiagnosticModelCounts(group);
             this.setupAnimations(group);
             statusEl.textContent = `Loaded: ${group.name} (animations: ${group.animations.length})`;
             this.updateTextureUI();
@@ -1493,15 +1523,17 @@ class App {
             if (this.exportBtn) this.exportBtn.disabled = false;
             this.emitStateChanged();
 
-            if (!suppressRecent) {
+            if (!suppressRecent && isCurrent()) {
                 const recentEntry: RecentModelEntry = {
-                    label: this.pendingRecentModelContext?.label || this.bmdFile?.name || 'Model',
+                    label: recentContext?.label || modelFile.name || 'Model',
                     timestamp: Date.now(),
-                    modelFileKey: this.pendingRecentModelContext?.modelFileKey ?? null,
-                    sourceWorldNumber: this.pendingRecentModelContext?.sourceWorldNumber ?? null,
+                    modelFileKey: recentContext?.modelFileKey ?? null,
+                    sourceWorldNumber: recentContext?.sourceWorldNumber ?? null,
                 };
                 this.onModelLoaded?.(recentEntry);
-                this.pendingRecentModelContext = null;
+                if (this.pendingRecentModelContext === recentContext) {
+                    this.pendingRecentModelContext = null;
+                }
             }
 
             if (textureFiles?.length) {
@@ -1513,86 +1545,100 @@ class App {
                 );
 
                 for (const textureFile of matchingTextureFiles) {
-                    const applied = await this.loadAndApplyTexture(textureFile, { promptOnUnmatched: false });
-                    if (applied) {
-                        autoAppliedCount++;
-                    }
+                    if (!isCurrent()) return;
+                    const applied = await this.loadAndApplyTexture(textureFile, {
+                        promptOnUnmatched: false,
+                        expectedGroup: group,
+                        modelLoadToken: loadToken,
+                    });
+                    if (applied) autoAppliedCount++;
                 }
-                if (autoAppliedCount > 0) {
+                if (isCurrent() && autoAppliedCount > 0) {
                     statusEl.textContent = `Loaded: ${group.name} | Auto-loaded ${autoAppliedCount} matching world textures`;
                 }
             }
 
-            // Auto-search and load textures in Electron
-            if (isElectron() && this.lastBmdFilePath && requiredTextures.length > 0) {
+            if (isElectron() && this.lastBmdFilePath && requiredTextures.length > 0 && isCurrent()) {
                 logger.debug('%c[Electron] Auto-searching textures...', 'color: #4CAF50');
-                logger.debug('[Electron] Required textures from BMD:', requiredTextures);
-                logger.debug('[Electron] BMD file path:', this.lastBmdFilePath);
                 statusEl.textContent = 'Searching for textures...';
 
                 try {
                     const foundTextures = await autoSearchTextures(this.lastBmdFilePath, requiredTextures);
+                    if (!isCurrent()) return;
                     const foundCount = Object.keys(foundTextures).length;
-                    logger.debug('[Electron] Search result:', foundTextures);
 
                     if (foundCount > 0) {
                         const texturePaths = selectPreferredTexturePaths(foundTextures, requiredTextures);
-                        logger.debug(`%c[Electron] Found ${foundCount} texture names, loading ${texturePaths.length} preferred files...`, 'color: #4CAF50');
-
+                        let loadedTextureCount = 0;
                         for (const texturePath of texturePaths) {
+                            if (!isCurrent()) return;
                             const fileData = await readFileFromPath(texturePath);
+                            if (!isCurrent()) return;
                             if (fileData) {
                                 const file = createFileFromElectronData(fileData.name, fileData.data);
-                                await this.loadAndApplyTexture(file, { promptOnUnmatched: false });
+                                const applied = await this.loadAndApplyTexture(file, {
+                                    promptOnUnmatched: false,
+                                    expectedGroup: group,
+                                    modelLoadToken: loadToken,
+                                });
+                                if (applied) loadedTextureCount++;
                             }
                         }
 
-                        statusEl.textContent = `Loaded: ${group.name} | Auto-loaded ${texturePaths.length} texture files for ${foundCount} base names`;
-                    } else {
+                        if (isCurrent()) {
+                            statusEl.textContent = `Loaded: ${group.name} | Auto-loaded ${loadedTextureCount} texture files for ${foundCount} base names`;
+                        }
+                    } else if (isCurrent()) {
                         statusEl.textContent = `Loaded: ${group.name} | No textures found automatically`;
                     }
                 } catch (error) {
+                    if (!isCurrent()) return;
                     logger.error('[Electron] Error auto-searching textures:', error);
                     statusEl.textContent = `Loaded: ${group.name} | Texture search failed`;
                 }
             }
 
-            // --- skeleton helper ---
+            if (!isCurrent()) return;
             if (skeletonHelper) {
                 this.scene.remove(skeletonHelper);
-                (skeletonHelper.geometry as THREE.BufferGeometry).dispose();
-                skeletonHelper = null;
+                skeletonHelper.geometry.dispose();
+                (skeletonHelper.material as THREE.Material).dispose();
             }
             skeletonHelper = new THREE.SkeletonHelper(group);
             skeletonHelper.visible = showSkeletonEl.checked;
             this.scene.add(skeletonHelper);
 
-            // --- wireframe init ----
-            group.traverse(obj => {
-                if ((obj as any).isMesh) {
-                    const m = (obj as THREE.Mesh).material as THREE.Material;
-                    if ('wireframe' in m) {
-                        (m as any).wireframe = wireframeEl.checked;
-                        m.needsUpdate = true;
+            group.traverse(object => {
+                if (!(object as THREE.Mesh).isMesh) return;
+                const materials = Array.isArray((object as THREE.Mesh).material)
+                    ? (object as THREE.Mesh).material
+                    : [(object as THREE.Mesh).material];
+                materials.forEach(material => {
+                    if ('wireframe' in material) {
+                        (material as THREE.MeshPhongMaterial).wireframe = wireframeEl.checked;
+                        material.needsUpdate = true;
                     }
-                }
+                });
             });
-            // --- meshRefs & blending UI ---
+
             this.meshRefs = [];
-            group.traverse(obj => {
-                if ((obj as any).isMesh) this.meshRefs.push(obj as THREE.Mesh);
+            group.traverse(object => {
+                if ((object as THREE.Mesh).isMesh) this.meshRefs.push(object as THREE.Mesh);
             });
             this.buildBlendingUI();
-
-            // --- helpers (bbox / axes / normals) --------------------------
             this.updateBoundingBoxHelperState();
             this.updateAxesHelperState();
             this.updateNormalsHelpersState();
-
-        } catch (err) {
-            logger.error('loader.load() ERROR', err);
-            statusEl.textContent = `Error: ${(err as Error).message}`;
-            this.pendingRecentModelContext = null;
+        } catch (error) {
+            if (pendingGroup) {
+                Disposer.disposeObject3D(pendingGroup, false);
+            }
+            if (!isCurrent()) return;
+            logger.error('loader.load() ERROR', error);
+            statusEl.textContent = `Error: ${(error as Error).message}`;
+            if (this.pendingRecentModelContext === recentContext) {
+                this.pendingRecentModelContext = null;
+            }
         } finally {
             logger.timeEnd('loadAndDisplayModel');
             logger.groupEnd();
@@ -1601,39 +1647,45 @@ class App {
 
     /** Load animations from an external BMD file and apply them to the current model */
     private async loadExternalAnimations() {
-        if (!this.loadedGroup || !this.animBmdFile) return;
+        const targetGroup = this.loadedGroup;
+        const animationFile = this.animBmdFile;
+        const loadToken = this.modelLoadToken;
+        if (!targetGroup || !animationFile) return;
+
+        const isCurrent = () =>
+            this.loadedGroup === targetGroup &&
+            this.animBmdFile === animationFile &&
+            this.modelLoadToken === loadToken;
 
         try {
-            const buffer = await this.animBmdFile.arrayBuffer();
+            const buffer = await animationFile.arrayBuffer();
+            if (!isCurrent()) return;
 
-            // Use mainSkeleton if available (more reliable when attachments are loaded)
             let skeleton: THREE.Skeleton | null = this.mainSkeleton;
-
-            // Fallback: search in loadedGroup
             if (!skeleton) {
-                logger.debug('[loadExternalAnimations] mainSkeleton not available, searching in loadedGroup...');
-                this.loadedGroup.traverse(obj => {
-                    if (!skeleton && (obj as THREE.SkinnedMesh).isSkinnedMesh) {
-                        skeleton = (obj as THREE.SkinnedMesh).skeleton;
+                targetGroup.traverse(object => {
+                    if (!skeleton && (object as THREE.SkinnedMesh).isSkinnedMesh) {
+                        skeleton = (object as THREE.SkinnedMesh).skeleton;
                     }
                 });
             }
 
-            if (!skeleton) {
+            if (!skeleton || !isCurrent()) {
                 logger.warn('No skeleton found for external animations');
                 return;
             }
 
-            logger.debug('[loadExternalAnimations] Using skeleton with', skeleton.bones.length, 'bones');
-            const bmdBones = this.loadedGroup?.userData.bmdBones as THREE.Bone[] | undefined;
+            const bmdBones = targetGroup.userData.bmdBones as THREE.Bone[] | undefined;
             const clips = this.bmdLoader.loadAnimationsFrom(buffer, skeleton, bmdBones);
+            if (!isCurrent()) return;
+
             if (clips.length) {
-                this.loadedGroup.animations = clips;
-                this.setupAnimations(this.loadedGroup);
-                document.getElementById('status')!.textContent = `Animations loaded from ${this.animBmdFile.name}`;
+                targetGroup.animations = clips;
+                this.setupAnimations(targetGroup);
+                document.getElementById('status')!.textContent = `Animations loaded from ${animationFile.name}`;
             }
-        } catch (e) {
-            logger.error('Failed to load external animations', e);
+        } catch (error) {
+            if (isCurrent()) logger.error('Failed to load external animations', error);
         }
     }
 
@@ -1717,43 +1769,34 @@ class App {
     // ### NEW METHOD ### Scene cleanup
     //----------------------------------------------------------
     private clearScene() {
-        const old = this.scene.getObjectByName('bmd_model');
+        ++this.attachmentLoadToken;
+        const old = this.loadedGroup ?? this.scene.getObjectByName('bmd_model');
         if (old) {
+            this.mixer = Disposer.disposeMixer(this.mixer, old);
+            this.currentAction = null;
             this.scene.remove(old);
-            old.traverse((child: THREE.Object3D) => {
-                if ((child as THREE.Mesh).isMesh) {
-                    (child as THREE.Mesh).geometry.dispose();
-                    const mat = (child as THREE.Mesh).material;
-                    if (Array.isArray(mat)) {
-                        mat.forEach(m => m.dispose());
-                    } else if (mat) {
-                        if ('map' in mat && mat.map && mat.map instanceof THREE.Texture) {
-                            this.disposeDerivedAlphaTexture(mat.map);
-                            if ('alphaMap' in mat) {
-                                (mat as THREE.MeshPhongMaterial).alphaMap = null;
-                            }
-                            mat.map.dispose();
-                        }
-                        if ('alphaMap' in mat && mat.alphaMap && mat.alphaMap instanceof THREE.Texture && mat.alphaMap !== (mat as THREE.MeshPhongMaterial).map) {
-                            mat.alphaMap.dispose();
-                        }
-                        mat.dispose();
-                    }
-                }
-            });
-            // Properly dispose mixer before setting to null
+            Disposer.disposeObject3D(old, false);
+        } else {
             this.mixer = Disposer.disposeMixer(this.mixer);
             this.currentAction = null;
-            document.getElementById('animations-container')!.innerHTML = '';
+        }
+        this.loadedGroup = null;
+
+        if (skeletonHelper) {
+            this.scene.remove(skeletonHelper);
+            skeletonHelper.geometry.dispose();
+            (skeletonHelper.material as THREE.Material).dispose();
+            skeletonHelper = null;
         }
 
-        // Clear mesh references for blending UI
+        const animationsContainer = document.getElementById('animations-container');
+        if (animationsContainer) animationsContainer.replaceChildren();
+
         this.meshRefs = [];
-
-        // Clear main skeleton reference
         this.mainSkeleton = null;
+        this.diagnosticBoneCount = 0;
+        this.diagnosticMeshCount = 0;
 
-        // Remove helpers for previous model
         if (this.boundingBoxHelper) {
             this.scene.remove(this.boundingBoxHelper);
             this.boundingBoxHelper.geometry.dispose();
@@ -1776,8 +1819,13 @@ class App {
         }
         this.normalsVisible = false;
 
-        // Clear and dispose all attachments
-        Disposer.disposeObjectArray(this.attachments);
+        if (!old) {
+            Disposer.disposeObjectArray(this.attachments);
+        }
+        this.attachments = [];
+        this.currentAttachment = null;
+        this.currentAttachmentFile = null;
+        this.appliedTextureFiles.clear();
 
         if (this.exportBtn) this.exportBtn.disabled = true;
         this.updateStageForObject(null);
@@ -1804,54 +1852,75 @@ class App {
         }
     }
 
-    private async loadAndApplyTexture(file: File, options?: { promptOnUnmatched?: boolean }): Promise<boolean> {
-        if (!this.loadedGroup) {
+    private async loadAndApplyTexture(
+        file: File,
+        options?: {
+            promptOnUnmatched?: boolean;
+            expectedGroup?: THREE.Group;
+            modelLoadToken?: number;
+            isStillValid?: () => boolean;
+        },
+    ): Promise<boolean> {
+        const targetGroup = options?.expectedGroup ?? this.loadedGroup;
+        if (!targetGroup) {
             logger.warn('Model not loaded - no textures.');
             return false;
         }
+
+        const isCurrentTarget = () =>
+            this.loadedGroup === targetGroup &&
+            (options?.modelLoadToken === undefined || options.modelLoadToken === this.modelLoadToken) &&
+            (options?.isStillValid?.() ?? true);
 
         const status = document.getElementById('status')!;
         const promptOnUnmatched = options?.promptOnUnmatched ?? true;
         const { base: fileBase, ext: fileExt } = normalizeTextureName(file.name);
 
         const meshList: { mesh: THREE.Mesh; path: string; isMatch: boolean }[] = [];
-        this.loadedGroup.traverse(obj => {
-            if ((obj as THREE.Mesh).isMesh && obj.userData.texturePath) {
-                const wantedPath = obj.userData.texturePath as string;
-                const { base: wantedBase, ext: wantedExt } = normalizeTextureName(wantedPath);
-                const isMatch = wantedBase === fileBase && areTextureExtensionsCompatible(wantedExt, fileExt);
-                meshList.push({ mesh: obj as THREE.Mesh, path: wantedPath, isMatch });
-            }
+        targetGroup.traverse(object => {
+            const mesh = object as THREE.Mesh;
+            if (!mesh.isMesh || !object.userData.texturePath) return;
+            const wantedPath = object.userData.texturePath as string;
+            const { base: wantedBase, ext: wantedExt } = normalizeTextureName(wantedPath);
+            const isMatch = wantedBase === fileBase && areTextureExtensionsCompatible(wantedExt, fileExt);
+            meshList.push({ mesh, path: wantedPath, isMatch });
         });
 
-        let targets = meshList.filter(m => m.isMatch);
+        let targets = meshList.filter(item => item.isMatch);
         if (targets.length === 0 && promptOnUnmatched && fileExt !== 'ozj' && fileExt !== 'ozt') {
-            let promptMsg = `Apply texture "${file.name}" to which mesh?\n`;
-            meshList.forEach((m, i) => {
-                promptMsg += `${i}: ${m.mesh.name} (needs ${m.path})\n`;
+            let promptMessage = `Apply texture "${file.name}" to which mesh?
+`;
+            meshList.forEach((item, index) => {
+                promptMessage += `${index}: ${item.mesh.name} (needs ${item.path})
+`;
             });
 
-            const choiceStr = window.prompt(promptMsg, '');
-            const idx = choiceStr !== null ? parseInt(choiceStr, 10) : NaN;
-            targets = !isNaN(idx) && meshList[idx] ? [meshList[idx]] : [];
+            const choice = window.prompt(promptMessage, '');
+            const index = choice !== null ? parseInt(choice, 10) : Number.NaN;
+            targets = !Number.isNaN(index) && meshList[index] ? [meshList[index]] : [];
         }
 
         if (targets.length === 0) {
             logger.warn(`No matching mesh found for "${file.name}"`);
-            status.textContent = promptOnUnmatched
-                ? `Texture "${file.name}" was not applied.`
-                : `No matching mesh found for "${file.name}".`;
+            if (isCurrentTarget()) {
+                status.textContent = promptOnUnmatched
+                    ? `Texture "${file.name}" was not applied.`
+                    : `No matching mesh found for "${file.name}".`;
+            }
             return false;
         }
 
-        status.textContent = `Loading: ${file.name}...`;
+        if (isCurrentTarget()) status.textContent = `Loading: ${file.name}...`;
 
         try {
-            const tex = await this.loadTextureForViewer(file, fileExt);
-            const blendResult = detectBlendModeFromTexture(tex, file.name);
-            tex.userData.blendHeuristic = blendResult;
-            const blendLabel = describeBlendMode(blendResult.mode);
-            const confidenceLabel = Math.round(blendResult.confidence * 100);
+            const texture = await this.loadTextureForViewer(file, fileExt);
+            if (!isCurrentTarget()) {
+                texture.dispose();
+                return false;
+            }
+
+            const blendResult = detectBlendModeFromTexture(texture, file.name);
+            texture.userData.blendHeuristic = blendResult;
             const blendByHint = new Map<string, BlendHeuristicResult>([
                 [file.name.toLowerCase(), blendResult],
             ]);
@@ -1859,27 +1928,49 @@ class App {
                 const key = hint.toLowerCase();
                 const cached = blendByHint.get(key);
                 if (cached) return cached;
-                const detected = detectBlendModeFromTexture(tex, hint);
+                const detected = detectBlendModeFromTexture(texture, hint);
                 blendByHint.set(key, detected);
                 return detected;
             };
-            logger.debug(
-                `[Texture blend] "${file.name}" -> ${blendLabel} (${confidenceLabel}%) ${blendResult.reason}`,
-                { metrics: blendResult.metrics, scores: blendResult.scores },
-            );
 
+            // A texture object must have one clear owner. Assign a clone to each
+            // distinct material so replacing one mesh texture cannot dispose a
+            // texture still used by another mesh.
+            const uniqueTargets: typeof targets = [];
+            const seenMaterials = new Set<THREE.Material>();
             for (const target of targets) {
-                this.applyLoadedTextureToMesh(target.mesh, tex, getBlendForHint(target.path));
+                const materials = Array.isArray(target.mesh.material)
+                    ? target.mesh.material
+                    : [target.mesh.material];
+                const primaryMaterial = materials[0];
+                if (!primaryMaterial || seenMaterials.has(primaryMaterial)) continue;
+                seenMaterials.add(primaryMaterial);
+                uniqueTargets.push(target);
+            }
+
+            uniqueTargets.forEach((target, index) => {
+                const assignedTexture = index === 0 ? texture : texture.clone();
+                assignedTexture.name = texture.name;
+                assignedTexture.userData = { ...texture.userData };
+                assignedTexture.needsUpdate = true;
+                this.applyLoadedTextureToMesh(target.mesh, assignedTexture, getBlendForHint(target.path));
+            });
+
+            if (uniqueTargets.length === 0) {
+                texture.dispose();
+                return false;
             }
 
             if (this.exportBtn) this.exportBtn.disabled = false;
-            const firstBlend = getBlendForHint(targets[0].path);
-            status.textContent = `Texture "${file.name}" loaded (blend: ${describeBlendMode(firstBlend.mode)}, ${Math.round(firstBlend.confidence * 100)}%).`;
+            const firstBlend = getBlendForHint(uniqueTargets[0].path);
+            if (isCurrentTarget()) {
+                status.textContent = `Texture "${file.name}" loaded (blend: ${describeBlendMode(firstBlend.mode)}, ${Math.round(firstBlend.confidence * 100)}%).`;
+            }
             this.rememberAppliedTextureFile(file);
             return true;
-        } catch (e) {
-            logger.error('Texture load error:', e);
-            status.textContent = `Error: ${(e as Error).message}`;
+        } catch (error) {
+            logger.error('Texture load error:', error);
+            if (isCurrentTarget()) status.textContent = `Error: ${(error as Error).message}`;
             return false;
         }
     }
@@ -1912,18 +2003,61 @@ class App {
         texture: THREE.Texture,
         blendResult: BlendHeuristicResult,
     ): void {
-        const mat = mesh.material as THREE.MeshPhongMaterial;
-        if (mat.map) {
-            this.disposeDerivedAlphaTexture(mat.map);
-            mat.alphaMap = null;
-            mat.map.dispose();
+        const material = mesh.material as THREE.MeshPhongMaterial;
+        const previousMap = material.map;
+        const previousAlphaMap = material.alphaMap;
+        const previousDerivedAlphaMap = previousMap?.userData?.blackKeyAlphaMap as THREE.Texture | undefined;
+
+        material.map = texture;
+        material.alphaMap = null;
+
+        if (previousMap && !this.isTextureUsedByOtherMaterial(previousMap, material)) {
+            this.disposeDerivedAlphaTexture(previousMap);
+            previousMap.dispose();
+        }
+        if (
+            previousAlphaMap &&
+            previousAlphaMap !== previousMap &&
+            previousAlphaMap !== previousDerivedAlphaMap &&
+            !this.isTextureUsedByOtherMaterial(previousAlphaMap, material)
+        ) {
+            previousAlphaMap.dispose();
         }
 
-        mat.map = texture;
-        mat.color.set(0xffffff);
-        applyBlendModeToMaterial(mat, blendResult);
-        this.rememberMaterialAlphaDefaults(mat);
-        this.applyBlackKeyThresholdToMaterial(mat);
+        material.color.set(0xffffff);
+        applyBlendModeToMaterial(material, blendResult);
+        this.rememberMaterialAlphaDefaults(material);
+        this.applyBlackKeyThresholdToMaterial(material);
+    }
+
+    private isTextureUsedByOtherMaterial(texture: THREE.Texture, ignoredMaterial: THREE.Material): boolean {
+        if (!this.loadedGroup) return false;
+        let used = false;
+        this.loadedGroup.traverse(object => {
+            if (used || !(object as THREE.Mesh).isMesh) return;
+            const materials = Array.isArray((object as THREE.Mesh).material)
+                ? (object as THREE.Mesh).material
+                : [(object as THREE.Mesh).material];
+            for (const material of materials) {
+                if (!material || material === ignoredMaterial) continue;
+                const record = material as THREE.Material & {
+                    map?: THREE.Texture | null;
+                    alphaMap?: THREE.Texture | null;
+                    normalMap?: THREE.Texture | null;
+                    emissiveMap?: THREE.Texture | null;
+                };
+                if (
+                    record.map === texture ||
+                    record.alphaMap === texture ||
+                    record.normalMap === texture ||
+                    record.emissiveMap === texture
+                ) {
+                    used = true;
+                    break;
+                }
+            }
+        });
+        return used;
     }
 
     //----------------------------------------------------------
@@ -1967,17 +2101,22 @@ class App {
             return ext && TEXTURE_EXTS.has(ext);
         });
 
-        if (this.folderFiles.length === 0) return;
-
-        // Invalidate any in-flight thumbnail work from a previous folder
+        // Invalidate any in-flight thumbnail work from a previous folder.
         ++this.thumbnailGenId;
         this.thumbnailPending.clear();
         this.thumbnailVisible.clear();
         this.thumbnailProcessing = false;
         this.folderObserver?.disconnect();
+        this.thumbnailCache.clear();
+        this.thumbnailTexDataUrlCache.clear();
 
         this.folderActiveIndex = null;
         this.renderFolderPanel();
+        if (this.folderFiles.length === 0) {
+            this.closeFolderPanel();
+            this.setStatusMessage('The selected folder does not contain BMD models.');
+            return;
+        }
         this.openFolderPanel();
         this.setupFolderObserver();
     }
@@ -2018,7 +2157,7 @@ class App {
 
             for (const idx of update.cachedIndexesToApply) {
                 const key = this.thumbCacheKey(idx);
-                const cached = key ? this.thumbnailCache.get(key) : undefined;
+                const cached = key ? this.getThumbnailCache(key) : undefined;
                 if (cached !== undefined) {
                     this.applyCardThumbnail(idx, cached);
                 }
@@ -2069,13 +2208,14 @@ class App {
 
             let thumb: string;
 
-            if (this.thumbnailCache.has(cacheKey)) {
-                thumb = this.thumbnailCache.get(cacheKey)!;
+            const cachedThumbnail = this.getThumbnailCache(cacheKey);
+            if (cachedThumbnail !== undefined) {
+                thumb = cachedThumbnail;
             } else {
                 if (!this.thumbnailVisible.has(idx)) continue;
                 thumb = await this.generateThumbnail(file);
                 if (genId !== this.thumbnailGenId) break;
-                this.thumbnailCache.set(cacheKey, thumb);
+                this.setThumbnailCache(cacheKey, thumb);
             }
 
             if (this.thumbnailVisible.has(idx)) {
@@ -2102,9 +2242,50 @@ class App {
         return key !== null && this.thumbnailCache.has(key);
     }
 
+    private fileCacheKey(file: File): string {
+        const relativePath = (file as File & { webkitRelativePath?: string }).webkitRelativePath;
+        return `${relativePath || file.name}|${file.size}|${file.lastModified}`.toLowerCase();
+    }
+
     private thumbCacheKey(index: number): string | null {
-        const f = this.folderFiles[index];
-        return f ? `${f.name}|${f.size}|${f.lastModified}` : null;
+        const file = this.folderFiles[index];
+        return file ? this.fileCacheKey(file) : null;
+    }
+
+    private getThumbnailCache(key: string): string | undefined {
+        const value = this.thumbnailCache.get(key);
+        if (value === undefined) return undefined;
+        this.thumbnailCache.delete(key);
+        this.thumbnailCache.set(key, value);
+        return value;
+    }
+
+    private setThumbnailCache(key: string, value: string): void {
+        this.thumbnailCache.delete(key);
+        this.thumbnailCache.set(key, value);
+        while (this.thumbnailCache.size > this.thumbnailCacheLimit) {
+            const oldestKey = this.thumbnailCache.keys().next().value as string | undefined;
+            if (oldestKey === undefined) break;
+            this.thumbnailCache.delete(oldestKey);
+        }
+    }
+
+    private getThumbnailTextureCache(key: string): string | undefined {
+        const value = this.thumbnailTexDataUrlCache.get(key);
+        if (value === undefined) return undefined;
+        this.thumbnailTexDataUrlCache.delete(key);
+        this.thumbnailTexDataUrlCache.set(key, value);
+        return value;
+    }
+
+    private setThumbnailTextureCache(key: string, value: string): void {
+        this.thumbnailTexDataUrlCache.delete(key);
+        this.thumbnailTexDataUrlCache.set(key, value);
+        while (this.thumbnailTexDataUrlCache.size > this.thumbnailTextureCacheLimit) {
+            const oldestKey = this.thumbnailTexDataUrlCache.keys().next().value as string | undefined;
+            if (oldestKey === undefined) break;
+            this.thumbnailTexDataUrlCache.delete(oldestKey);
+        }
     }
 
     // -- lightweight thumbnail renderer -----------------------------------
@@ -2221,26 +2402,37 @@ class App {
                 const texFile = texByBase.get(wantedBase);
                 if (texFile) {
                     try {
-                        const cacheKey = texFile.name.toLowerCase();
-                        let dataUrl = this.thumbnailTexDataUrlCache.get(cacheKey);
-                        if (!dataUrl) {
-                            const ext = texFile.name.toLowerCase().split('.').pop()!;
-                            if (ext === 'ozj' || ext === 'ozt') {
-                                dataUrl = await convertOzjToDataUrl(await texFile.arrayBuffer());
-                            } else if (ext === 'tga') {
-                                dataUrl = await convertTgaToDataUrl(await texFile.arrayBuffer());
+                        const cacheKey = this.fileCacheKey(texFile);
+                        const ext = texFile.name.toLowerCase().split('.').pop()!;
+                        let dataUrl: string;
+                        let objectUrl: string | null = null;
+
+                        if (ext === 'ozj' || ext === 'ozt' || ext === 'tga') {
+                            const cachedDataUrl = this.getThumbnailTextureCache(cacheKey);
+                            if (cachedDataUrl) {
+                                dataUrl = cachedDataUrl;
                             } else {
-                                dataUrl = URL.createObjectURL(texFile);
+                                dataUrl = ext === 'tga'
+                                    ? await convertTgaToDataUrl(await texFile.arrayBuffer())
+                                    : await convertOzjToDataUrl(await texFile.arrayBuffer());
+                                this.setThumbnailTextureCache(cacheKey, dataUrl);
                             }
-                            this.thumbnailTexDataUrlCache.set(cacheKey, dataUrl);
+                        } else {
+                            objectUrl = URL.createObjectURL(texFile);
+                            dataUrl = objectUrl;
                         }
-                        const tex = await loader.loadAsync(dataUrl);
-                        tex.colorSpace = THREE.SRGBColorSpace;
-                        tex.flipY = false;
-                        tex.wrapS = tex.wrapT = THREE.RepeatWrapping;
-                        material = new THREE.MeshPhongMaterial({ map: tex, side: THREE.DoubleSide, transparent: true, alphaTest: 0.05 });
+
+                        try {
+                            const tex = await loader.loadAsync(dataUrl);
+                            tex.colorSpace = THREE.SRGBColorSpace;
+                            tex.flipY = false;
+                            tex.wrapS = tex.wrapT = THREE.RepeatWrapping;
+                            material = new THREE.MeshPhongMaterial({ map: tex, side: THREE.DoubleSide, transparent: true, alphaTest: 0.05 });
+                        } finally {
+                            if (objectUrl) URL.revokeObjectURL(objectUrl);
+                        }
                     } catch {
-                        // fallback to shared gray material
+                        // Fall back to the shared neutral material.
                     }
                 }
             }
@@ -2254,86 +2446,74 @@ class App {
 
     private async generateThumbnail(file: File): Promise<string> {
         const renderer = this.getThumbnailRenderer();
-
-        // Reuse a persistent mini-scene (lights survive across calls)
         const scene = new THREE.Scene();
         scene.background = new THREE.Color(0x0c1520);
         scene.add(new THREE.AmbientLight(0x8899cc, 1.5));
-        const dir = new THREE.DirectionalLight(0xffffff, 3.8);
-        dir.position.set(1.2, 2.2, 1.8);
-        scene.add(dir);
+        const directional = new THREE.DirectionalLight(0xffffff, 3.8);
+        directional.position.set(1.2, 2.2, 1.8);
+        scene.add(directional);
         const rim = new THREE.DirectionalLight(0x3377bb, 1.1);
         rim.position.set(-1.2, 0.5, -1);
         scene.add(rim);
 
+        let group: THREE.Group | null = null;
         try {
             const buffer = await file.arrayBuffer();
-
-            // Suppress console spam from the parser during batch operations
-            const saved = {
-                groupCollapsed: console.groupCollapsed,
-                groupEnd: console.groupEnd,
-                log: console.log,
-                time: console.time,
-                timeEnd: console.timeEnd,
-            };
-            const noop = (() => {}) as (..._args: unknown[]) => void;
-            console.groupCollapsed = noop;
-            console.groupEnd = noop;
-            console.log = noop;
-            console.time = noop;
-            console.timeEnd = noop;
-
-            let bmd: BMD;
-            try {
-                bmd = this.bmdLoader.parse(buffer, { bindPoseOnly: true });
-            } finally {
-                console.groupCollapsed = saved.groupCollapsed;
-                console.groupEnd = saved.groupEnd;
-                console.log = saved.log;
-                console.time = saved.time;
-                console.timeEnd = saved.timeEnd;
-            }
-
-            const group = await this.buildThumbnailGroup(bmd, this.folderTextureFiles);
+            group = await this.buildThumbnailGroup(
+                this.bmdLoader.parse(buffer, { bindPoseOnly: true }),
+                this.folderTextureFiles,
+            );
             scene.add(group);
             group.updateWorldMatrix(true, true);
 
             const box = new THREE.Box3().setFromObject(group);
-            if (box.isEmpty()) throw new Error('empty');
+            if (box.isEmpty()) throw new Error('Thumbnail model has no geometry.');
 
             const size = box.getSize(new THREE.Vector3());
             const center = box.getCenter(new THREE.Vector3());
-            const maxDim = Math.max(size.x, size.y, size.z);
+            const maxDimension = Math.max(size.x, size.y, size.z);
             const fov = 44;
-            const dist = (maxDim / 2) / Math.tan((fov / 2) * (Math.PI / 180)) * 1.15;
+            const distance = (maxDimension / 2) / Math.tan((fov / 2) * (Math.PI / 180)) * 1.15;
 
-            const camera = new THREE.PerspectiveCamera(fov, 180 / 136, 0.01, dist * 20);
+            const camera = new THREE.PerspectiveCamera(fov, 180 / 136, 0.01, Math.max(10, distance * 20));
             camera.position.set(
-                center.x + dist * 0.38,
-                center.y + dist * 0.32,
-                center.z + dist,
+                center.x + distance * 0.38,
+                center.y + distance * 0.32,
+                center.z + distance,
             );
             camera.lookAt(center);
 
             renderer.render(scene, camera);
-            const dataUrl = renderer.domElement.toDataURL('image/jpeg', 0.78);
-
-            // Dispose geometry and per-mesh materials/textures; shared material stays alive
-            group.traverse(obj => {
-                const mesh = obj as THREE.Mesh;
-                if (!mesh.isMesh) return;
-                mesh.geometry.dispose();
-                const mat = mesh.material as THREE.MeshPhongMaterial;
-                if (mat !== this.thumbnailMaterial) {
-                    mat.map?.dispose();
-                    mat.dispose();
-                }
-            });
-
-            return dataUrl;
-        } catch {
+            return renderer.domElement.toDataURL('image/jpeg', 0.78);
+        } catch (error) {
+            logger.debug('[Thumbnail] Failed to generate preview', error);
             return '';
+        } finally {
+            if (group) {
+                const disposedGeometries = new Set<THREE.BufferGeometry>();
+                const disposedMaterials = new Set<THREE.Material>();
+                const disposedTextures = new Set<THREE.Texture>();
+                group.traverse(object => {
+                    const mesh = object as THREE.Mesh;
+                    if (!mesh.isMesh) return;
+                    if (!disposedGeometries.has(mesh.geometry)) {
+                        mesh.geometry.dispose();
+                        disposedGeometries.add(mesh.geometry);
+                    }
+                    const materials = Array.isArray(mesh.material) ? mesh.material : [mesh.material];
+                    materials.forEach(material => {
+                        if (!material || material === this.thumbnailMaterial || disposedMaterials.has(material)) return;
+                        const map = (material as THREE.MeshPhongMaterial).map;
+                        if (map && !disposedTextures.has(map)) {
+                            map.dispose();
+                            disposedTextures.add(map);
+                        }
+                        material.dispose();
+                        disposedMaterials.add(material);
+                    });
+                });
+                scene.remove(group);
+            }
         }
     }
 
@@ -2345,36 +2525,39 @@ class App {
         if (!listEl || !countEl) return;
 
         countEl.textContent = `${this.folderFiles.length} model${this.folderFiles.length !== 1 ? 's' : ''}`;
-        listEl.innerHTML = '';
+        listEl.replaceChildren();
 
-        this.folderFiles.forEach((file, i) => {
+        this.folderFiles.forEach((file, index) => {
             const card = document.createElement('div');
-            card.className = 'model-card' + (i === this.folderActiveIndex ? ' active' : '');
-            card.dataset.index = String(i);
-            const displayName = file.name.replace(/\.bmd$/i, '');
+            card.className = `model-card${index === this.folderActiveIndex ? ' active' : ''}`;
+            card.dataset.index = String(index);
 
-            // Check cache — render thumbnail instantly if available
-            const cacheKey = this.thumbCacheKey(i);
-            const cached = cacheKey ? this.thumbnailCache.get(cacheKey) : undefined;
-
-            if (cached !== undefined) {
-                const thumbContent = cached
-                    ? `<img src="${cached}" alt="${file.name}">`
-                    : '<span class="thumb-placeholder">No preview</span>';
-                card.innerHTML = `
-                    <div class="model-card-thumb">${thumbContent}</div>
-                    <div class="model-card-info">
-                      <div class="model-card-name" title="${file.name}">${displayName}</div>
-                    </div>`;
+            const thumb = document.createElement('div');
+            thumb.className = 'model-card-thumb';
+            const cacheKey = this.thumbCacheKey(index);
+            const cached = cacheKey ? this.getThumbnailCache(cacheKey) : undefined;
+            if (cached) {
+                const image = document.createElement('img');
+                image.src = cached;
+                image.alt = file.name;
+                thumb.appendChild(image);
             } else {
-                card.innerHTML = `
-                    <div class="model-card-thumb"><span class="thumb-placeholder">Preview on scroll</span></div>
-                    <div class="model-card-info">
-                      <div class="model-card-name" title="${file.name}">${displayName}</div>
-                    </div>`;
+                const placeholder = document.createElement('span');
+                placeholder.className = 'thumb-placeholder';
+                placeholder.textContent = cached === '' ? 'No preview' : 'Preview on scroll';
+                thumb.appendChild(placeholder);
             }
 
-            card.addEventListener('click', () => this.loadFolderItem(i));
+            const info = document.createElement('div');
+            info.className = 'model-card-info';
+            const name = document.createElement('div');
+            name.className = 'model-card-name';
+            name.title = file.name;
+            name.textContent = file.name.replace(/\.bmd$/i, '');
+            info.appendChild(name);
+
+            card.append(thumb, info);
+            card.addEventListener('click', () => this.loadFolderItem(index));
             listEl.appendChild(card);
         });
     }
@@ -2443,18 +2626,36 @@ class App {
 
     private removeTextures() {
         if (!this.loadedGroup) return;
-        this.loadedGroup.traverse(obj => {
-            const mesh = obj as THREE.Mesh;
+        const disposedTextures = new Set<THREE.Texture>();
+        const visitedMaterials = new Set<THREE.Material>();
+
+        this.loadedGroup.traverse(object => {
+            const mesh = object as THREE.Mesh;
             if (!mesh.isMesh) return;
             const materials = Array.isArray(mesh.material) ? mesh.material : [mesh.material];
-            materials.forEach(mat => {
-                const phong = mat as THREE.MeshPhongMaterial;
-                if (phong.map) {
-                    this.disposeDerivedAlphaTexture(phong.map);
-                    phong.map.dispose();
-                    phong.map = null;
-                    phong.alphaMap = null;
+            materials.forEach(material => {
+                if (!material || visitedMaterials.has(material)) return;
+                visitedMaterials.add(material);
+
+                const phong = material as THREE.MeshPhongMaterial;
+                const map = phong.map;
+                const alphaMap = phong.alphaMap;
+                const derivedAlphaMap = map?.userData?.blackKeyAlphaMap as THREE.Texture | undefined;
+
+                if (map) {
+                    this.disposeDerivedAlphaTexture(map);
+                    if (!disposedTextures.has(map)) {
+                        map.dispose();
+                        disposedTextures.add(map);
+                    }
                 }
+                if (alphaMap && alphaMap !== map && alphaMap !== derivedAlphaMap && !disposedTextures.has(alphaMap)) {
+                    alphaMap.dispose();
+                    disposedTextures.add(alphaMap);
+                }
+
+                phong.map = null;
+                phong.alphaMap = null;
                 phong.color.set(0xcccccc);
                 phong.transparent = false;
                 phong.depthWrite = true;
@@ -2646,13 +2847,15 @@ class App {
                 cvs.toBlob(blob => {
                     if (!blob) return;
                     const a = document.createElement('a');
-                    a.href = URL.createObjectURL(blob);
+                    const objectUrl = URL.createObjectURL(blob);
+                    a.href = objectUrl;
                     const base = (mat.map?.name ? mat.map.name : 'texture').replace(/\.[^.]+$/, '');
                     a.download = `${base}.png`;
                     a.style.display = 'none';
                     document.body.appendChild(a);
                     a.click();
                     document.body.removeChild(a);
+                    setTimeout(() => URL.revokeObjectURL(objectUrl), 0);
                 }, 'image/png');
 
                 exported.add(mat.map);
@@ -2867,13 +3070,19 @@ class App {
         this.updateDiagnosticInfo();
     }
 
+    private startAnimationLoop(): void {
+        if (!this.isActive || this.animationFrameHandle !== null) return;
+        this.animationFrameHandle = requestAnimationFrame(this.animate);
+    }
+
     private animate = (time: DOMHighResTimeStamp) => {
-        requestAnimationFrame(this.animate);
+        this.animationFrameHandle = null;
+        if (!this.isActive) return;
+        this.startAnimationLoop();
+
         this.timer.update(time);
         const delta = this.timer.getDelta();
-        if (!this.isActive || !this.rendererReady) {
-            return;
-        }
+        if (!this.rendererReady) return;
 
         const lightOrbit = time * 0.00025;
         this.rimLight.position.x = -160 + Math.sin(lightOrbit) * 18;
@@ -2932,23 +3141,46 @@ class App {
         this.mixer!.update(0);
     }
 
-    // ### NEW METHOD ### Update diagnostic information
-    private updateDiagnosticInfo(time: DOMHighResTimeStamp = 0) {
+    private refreshDiagnosticModelCounts(root: THREE.Object3D | null): void {
+        let boneCount = 0;
+        let meshCount = 0;
+        root?.traverse(object => {
+            if ((object as THREE.Bone).isBone) boneCount++;
+            if ((object as THREE.Mesh).isMesh) meshCount++;
+        });
+        this.diagnosticBoneCount = boneCount;
+        this.diagnosticMeshCount = meshCount;
+    }
 
-        this.diagActionsCountEl.textContent =
-            this.loadedGroup?.animations.length.toString() || '0';
-      
+    private updateDiagnosticInfo(time: DOMHighResTimeStamp = 0) {
+        this.frameCount++;
+        const elapsed = time - this.lastFrameTime;
+        if (time > 0 && elapsed >= 1000) {
+            this.fps = (this.frameCount * 1000) / elapsed;
+            this.frameCount = 0;
+            this.lastFrameTime = time;
+        }
+
+        const forceUpdate = time === 0;
+        if (!forceUpdate && time - this.lastDiagnosticDomUpdate < 100) {
+            return;
+        }
+        this.lastDiagnosticDomUpdate = time;
+
+        this.diagActionsCountEl.textContent = this.loadedGroup?.animations.length.toString() || '0';
+        this.diagBonesCountEl.textContent = this.diagnosticBoneCount.toString();
+        this.diagMeshesCountEl.textContent = this.diagnosticMeshCount.toString();
+        this.diagFpsEl.textContent = this.fps.toFixed(0);
+
         if (this.currentAction) {
             const clip = this.currentAction.getClip() as THREE.AnimationClip & {
-                userData?: { numAnimationKeys?: number }
+                userData?: { numAnimationKeys?: number };
             };
-      
             const numKeys = clip.userData?.numAnimationKeys ?? 0;
             this.diagAnimationKeysEl.textContent = numKeys.toString();
-            
-            if (numKeys > 0) {
-                const localTime  = (this.currentAction.time % clip.duration + clip.duration) % clip.duration;
-                const progress   = localTime / clip.duration;
+
+            if (numKeys > 0 && clip.duration > 0) {
+                const localTime = (this.currentAction.time % clip.duration + clip.duration) % clip.duration;
                 const currentFrame = this.isFrameLocked
                     ? this.lockedFrame
                     : Math.floor(localTime / clip.duration * numKeys);
@@ -2958,36 +3190,7 @@ class App {
             }
         } else {
             this.diagAnimationKeysEl.textContent = '0';
-            this.diagCurrentFrameEl.textContent  = 'N/A';
-        }
-
-        let boneCount = 0;
-        if (this.loadedGroup) {
-            this.loadedGroup.traverse(obj => {
-                if ((obj as any).isBone) {
-                    boneCount++;
-                }
-            });
-        }
-        this.diagBonesCountEl.textContent = boneCount.toString();
-
-        let meshCount = 0;
-        if (this.loadedGroup) {
-            this.loadedGroup.traverse(obj => {
-                if ((obj as THREE.Mesh).isMesh) {
-                    meshCount++;
-                }
-            });
-        }
-        this.diagMeshesCountEl.textContent = meshCount.toString();
-
-        this.frameCount++;
-        const elapsed = time - this.lastFrameTime;
-        if (elapsed >= 1000) {
-            this.fps = (this.frameCount * 1000) / elapsed;
-            this.diagFpsEl.textContent = this.fps.toFixed(0);
-            this.frameCount = 0;
-            this.lastFrameTime = time;
+            this.diagCurrentFrameEl.textContent = 'N/A';
         }
     }
 
@@ -3055,88 +3258,109 @@ class App {
 
     /** Load attachment model and attach to specified bone */
     private async loadAttachmentAtBone(boneIndex: number) {
-        logger.debug(`[loadAttachmentAtBone] Loading attachment at bone ${boneIndex}`);
-        if (!this.loadedGroup || !this.currentAttachmentFile || !this.mainSkeleton) {
+        const baseGroup = this.loadedGroup;
+        const attachmentFile = this.currentAttachmentFile;
+        const skeleton = this.mainSkeleton;
+        if (!baseGroup || !attachmentFile || !skeleton) {
             logger.warn('[loadAttachmentAtBone] Missing required objects');
             return;
         }
 
-        const bones = this.mainSkeleton.bones;
+        const bones = skeleton.bones;
         if (boneIndex < 0 || boneIndex >= bones.length) {
-            logger.warn(`[loadAttachmentAtBone] Bone index out of range`);
+            logger.warn('[loadAttachmentAtBone] Bone index out of range');
             return;
         }
 
-        const target = bones[boneIndex];
-        logger.debug(`[loadAttachmentAtBone] Attaching to bone: ${target.name || 'Unnamed'}`);
+        const loadToken = ++this.attachmentLoadToken;
+        const modelToken = this.modelLoadToken;
+        const isCurrent = () =>
+            loadToken === this.attachmentLoadToken &&
+            modelToken === this.modelLoadToken &&
+            this.loadedGroup === baseGroup &&
+            this.currentAttachmentFile === attachmentFile;
 
-        // Remove previous attachment if exists
-        if (this.currentAttachment) {
-            if (this.currentAttachment.parent) {
-                this.currentAttachment.parent.remove(this.currentAttachment);
+        let pendingGroup: THREE.Group | null = null;
+        try {
+            const buffer = await attachmentFile.arrayBuffer();
+            if (!isCurrent()) return;
+
+            const { group, requiredTextures } = await this.bmdLoader.load(buffer);
+            pendingGroup = group;
+            if (!isCurrent()) {
+                Disposer.disposeObject3D(group, false);
+                pendingGroup = null;
+                return;
             }
-            this.disposeAttachment(this.currentAttachment);
-        }
 
-        // Load new attachment
-        const { group, requiredTextures } = await this.bmdLoader.load(
-            await this.currentAttachmentFile.arrayBuffer()
-        );
+            group.name = `attachment_bone_${boneIndex}`;
+            group.position.set(0, 0, 0);
+            group.rotation.set(0, 0, 0);
+            group.scale.set(1, 1, 1);
+            this.applySceneMaterialTuning(group);
 
-        group.name = `attachment_bone_${boneIndex}`;
-        group.position.set(0, 0, 0);
-        group.rotation.set(0, 0, 0);
-        group.scale.set(1, 1, 1);
-        this.applySceneMaterialTuning(group);
+            const previousAttachment = this.currentAttachment;
+            if (previousAttachment) {
+                previousAttachment.parent?.remove(previousAttachment);
+                this.disposeAttachment(previousAttachment);
+            }
 
-        target.add(group);
-        this.currentAttachment = group;
+            bones[boneIndex].add(group);
+            this.currentAttachment = group;
+            pendingGroup = null;
+            this.requiredTextures.push(...requiredTextures);
+            this.updateTextureUI();
 
-        this.requiredTextures.push(...requiredTextures);
-        this.updateTextureUI();
-
-        // Auto-search and load textures in Electron
-        if (isElectron() && this.lastAttachmentFilePath && requiredTextures.length > 0) {
-            logger.debug('%c[Electron] Auto-searching textures for attachment...', 'color: #4CAF50');
-
-            try {
-                const foundTextures = await autoSearchTextures(this.lastAttachmentFilePath, requiredTextures);
-                const foundCount = Object.keys(foundTextures).length;
-
-                if (foundCount > 0) {
+            if (isElectron() && this.lastAttachmentFilePath && requiredTextures.length > 0) {
+                try {
+                    const foundTextures = await autoSearchTextures(this.lastAttachmentFilePath, requiredTextures);
+                    if (!isCurrent()) return;
                     const texturePaths = selectPreferredTexturePaths(foundTextures, requiredTextures);
-                    logger.debug(`%c[Electron] Found ${foundCount} texture names for attachment, loading ${texturePaths.length} preferred files...`, 'color: #4CAF50');
-
                     for (const texturePath of texturePaths) {
+                        if (!isCurrent()) return;
                         const fileData = await readFileFromPath(texturePath);
+                        if (!isCurrent()) return;
                         if (fileData) {
                             const file = createFileFromElectronData(fileData.name, fileData.data);
-                            await this.loadAndApplyTexture(file, { promptOnUnmatched: false });
+                            await this.loadAndApplyTexture(file, {
+                                promptOnUnmatched: false,
+                                expectedGroup: baseGroup,
+                                modelLoadToken: modelToken,
+                                isStillValid: isCurrent,
+                            });
                         }
                     }
-
-                    logger.debug(`%c[Electron] Auto-loaded ${texturePaths.length} texture files for ${foundCount} base names`, 'color: #4CAF50');
+                } catch (error) {
+                    if (isCurrent()) {
+                        logger.error('[Electron] Error auto-searching textures for attachment:', error);
+                    }
                 }
-            } catch (error) {
-                logger.error('[Electron] Error auto-searching textures for attachment:', error);
+            }
+
+            if (!isCurrent()) return;
+            if (skeletonHelper) {
+                this.scene.remove(skeletonHelper);
+                skeletonHelper.geometry.dispose();
+                (skeletonHelper.material as THREE.Material).dispose();
+            }
+            skeletonHelper = new THREE.SkeletonHelper(baseGroup);
+            skeletonHelper.visible = showSkeletonEl.checked;
+            this.scene.add(skeletonHelper);
+
+            this.meshRefs = [];
+            baseGroup.traverse(object => {
+                if ((object as THREE.Mesh).isMesh) this.meshRefs.push(object as THREE.Mesh);
+            });
+            this.refreshDiagnosticModelCounts(baseGroup);
+            this.buildBlendingUI();
+            this.updateStageForObject(baseGroup);
+        } catch (error) {
+            if (pendingGroup) Disposer.disposeObject3D(pendingGroup, false);
+            if (isCurrent()) {
+                logger.error('[loadAttachmentAtBone] Failed to load attachment:', error);
+                this.setStatusMessage(`Attachment error: ${(error as Error).message}`);
             }
         }
-
-        // Update skeleton helper
-        if (skeletonHelper) {
-            this.scene.remove(skeletonHelper);
-            (skeletonHelper.geometry as THREE.BufferGeometry).dispose();
-        }
-        skeletonHelper = new THREE.SkeletonHelper(this.loadedGroup);
-        skeletonHelper.visible = showSkeletonEl.checked;
-        this.scene.add(skeletonHelper);
-
-        this.meshRefs = [];
-        this.loadedGroup.traverse(obj => {
-            if ((obj as any).isMesh) this.meshRefs.push(obj as THREE.Mesh);
-        });
-        this.buildBlendingUI();
-        this.updateStageForObject(this.loadedGroup);
     }
 
     /** Change bone for current attachment (without reloading model) */
@@ -3179,6 +3403,7 @@ class App {
 
     /** Remove current attachment and hide controls */
     private removeAttachment() {
+        ++this.attachmentLoadToken;
         if (!this.currentAttachment) {
             alert('No attachment to remove.');
             return;
@@ -3222,18 +3447,7 @@ class App {
 
     /** Dispose attachment resources */
     private disposeAttachment(group: THREE.Group) {
-        group.traverse(obj => {
-            if ((obj as THREE.Mesh).isMesh) {
-                (obj as THREE.Mesh).geometry.dispose();
-                const mat = (obj as THREE.Mesh).material;
-                if (Array.isArray(mat)) {
-                    mat.forEach(m => m.dispose());
-                } else {
-                    if ((mat as any).map) (mat as any).map.dispose();
-                    (mat as THREE.Material).dispose();
-                }
-            }
-        });
+        Disposer.disposeObject3D(group);
     }
 
     // ========== OLD ATTACHMENT METHODS (kept for compatibility) ==========

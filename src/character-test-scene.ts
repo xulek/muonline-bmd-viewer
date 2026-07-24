@@ -179,7 +179,11 @@ export class CharacterTestScene {
   private isRecordingGif = false;
   private meshRefs: THREE.Mesh[] = [];
   private gridHelper: THREE.GridHelper | null = null;
+  private environmentTarget: THREE.WebGLRenderTarget | null = null;
+  private resizeHandler: (() => void) | null = null;
   private isActive = true;
+  private animationFrameHandle: number | null = null;
+  private disposed = false;
   private isAutoRotating = true;
   private userIsInteracting = false;
   private buildToken = 0;
@@ -233,7 +237,7 @@ export class CharacterTestScene {
   constructor() {
     this.initThree();
     this.initUI();
-    this.animate();
+    this.startAnimationLoop();
   }
 
   public setActive(active: boolean) {
@@ -241,6 +245,10 @@ export class CharacterTestScene {
     if (active) {
       this.timer.reset();
       this.refreshViewport();
+      this.startAnimationLoop();
+    } else if (this.animationFrameHandle !== null) {
+      cancelAnimationFrame(this.animationFrameHandle);
+      this.animationFrameHandle = null;
     }
   }
 
@@ -392,13 +400,13 @@ export class CharacterTestScene {
 
     const pmremGenerator = new THREE.PMREMGenerator(this.renderer);
     const environmentScene = new RoomEnvironment();
-    this.scene.environment = pmremGenerator.fromScene(environmentScene).texture;
+    this.environmentTarget = pmremGenerator.fromScene(environmentScene);
+    this.scene.environment = this.environmentTarget.texture;
     environmentScene.dispose();
     pmremGenerator.dispose();
 
-    window.addEventListener('resize', () => {
-      this.refreshViewport();
-    });
+    this.resizeHandler = () => this.refreshViewport();
+    window.addEventListener('resize', this.resizeHandler);
 
     this.controls = new OrbitControls(this.camera, this.renderer.domElement);
     this.controls.enableDamping = true;
@@ -714,6 +722,12 @@ export class CharacterTestScene {
     this.dataStatus.textContent = 'Loading Data folder...';
     this.statusEl.textContent = 'Loading Data folder...';
 
+    // A texture path can exist in multiple MU clients with different
+    // contents. Cancel the current rebuild and release the previous client's
+    // resources before indexing another Data folder.
+    ++this.buildToken;
+    this.clearCharacter();
+    this.clearTextureCache();
     this.dataFiles.clear();
     this.textureIndex.clear();
     this.dataRootPath = null;
@@ -1239,6 +1253,10 @@ export class CharacterTestScene {
         mat.map = tex;
         mat.color.set(0xffffff);
         applyBlendModeToMaterial(mat, blendResult);
+        // The mesh can be rendered once before asynchronous texture lookup
+        // finishes. In that case Three.js has already compiled a shader
+        // without USE_MAP, so assigning map alone does not enable texturing.
+        mat.needsUpdate = true;
       }
     });
   }
@@ -1598,8 +1616,11 @@ export class CharacterTestScene {
       } else {
         const blob = new Blob([buffer]);
         const url = URL.createObjectURL(blob);
-        tex = await this.textureLoader.loadAsync(url);
-        URL.revokeObjectURL(url);
+        try {
+          tex = await this.textureLoader.loadAsync(url);
+        } finally {
+          URL.revokeObjectURL(url);
+        }
       }
 
       tex.colorSpace = THREE.SRGBColorSpace;
@@ -2183,19 +2204,43 @@ export class CharacterTestScene {
   }
 
   private clearCharacter() {
-    if (!this.characterRoot) return;
+    const root = this.characterRoot;
+    if (!root) return;
 
-    this.scene.remove(this.characterRoot);
-    this.characterRoot.traverse(obj => {
-      if ((obj as THREE.Mesh).isMesh) {
-        const mesh = obj as THREE.Mesh;
+    this.mixer = Disposer.disposeMixer(this.mixer, root);
+    this.currentAction = null;
+    disposeCharacterItemAnimations(this.itemAnimationPlaybacks);
+
+    this.scene.remove(root);
+    const disposedGeometries = new Set<THREE.BufferGeometry>();
+    const disposedMaterials = new Set<THREE.Material>();
+    const disposedSkeletons = new Set<THREE.Skeleton>();
+    root.traverse(object => {
+      const mesh = object as THREE.Mesh;
+      if (mesh.geometry instanceof THREE.BufferGeometry && !disposedGeometries.has(mesh.geometry)) {
         mesh.geometry.dispose();
-        const mat = mesh.material;
-        if (Array.isArray(mat)) {
-          mat.forEach(m => m.dispose());
-        } else if (mat) {
-          mat.dispose();
+        disposedGeometries.add(mesh.geometry);
+      }
+
+      const materials = Array.isArray(mesh.material)
+        ? mesh.material
+        : mesh.material instanceof THREE.Material
+          ? [mesh.material]
+          : [];
+      materials.forEach(material => {
+        if (!disposedMaterials.has(material)) {
+          // Character textures are owned by textureCache and intentionally stay
+          // alive between rebuilds. Dispose only the material object here.
+          material.dispose();
+          disposedMaterials.add(material);
         }
+      });
+
+      const skinnedMesh = object as THREE.SkinnedMesh;
+      if (skinnedMesh.isSkinnedMesh && skinnedMesh.skeleton && !disposedSkeletons.has(skinnedMesh.skeleton)) {
+        skinnedMesh.skeleton.boneTexture?.dispose();
+        skinnedMesh.skeleton.dispose();
+        disposedSkeletons.add(skinnedMesh.skeleton);
       }
     });
 
@@ -2204,14 +2249,10 @@ export class CharacterTestScene {
     this.baseBmdBones = null;
     this.baseBindMatrix = null;
 
-    // Properly dispose mixer before setting to null
-    this.mixer = Disposer.disposeMixer(this.mixer);
-    this.currentAction = null;
-    disposeCharacterItemAnimations(this.itemAnimationPlaybacks);
-
     if (this.skeletonHelper) {
       this.scene.remove(this.skeletonHelper);
       (this.skeletonHelper.geometry as THREE.BufferGeometry).dispose();
+      (this.skeletonHelper.material as THREE.Material).dispose();
       this.skeletonHelper = null;
     }
     if (this.boundingBoxHelper) {
@@ -2236,15 +2277,13 @@ export class CharacterTestScene {
     }
 
     this.meshRefs = [];
-    if (this.blendingBox) {
-      this.blendingBox.style.display = 'none';
-    }
-    if (this.blendingList) {
-      this.blendingList.innerHTML = '';
-    }
+    if (this.blendingBox) this.blendingBox.style.display = 'none';
+    if (this.blendingList) this.blendingList.replaceChildren();
 
-    // Properly dispose shader materials before clearing
-    Disposer.disposeShaderMaterials(this.itemShaderMaterials);
+    this.itemShaderMaterials.forEach(material => {
+      if (!disposedMaterials.has(material)) material.dispose();
+    });
+    this.itemShaderMaterials.clear();
     this.updateStageForObject(null);
   }
 
@@ -2260,16 +2299,32 @@ export class CharacterTestScene {
    * Cleanup method to dispose all resources when scene is no longer needed.
    */
   public dispose(): void {
+    this.disposed = true;
+    if (this.animationFrameHandle !== null) {
+      cancelAnimationFrame(this.animationFrameHandle);
+      this.animationFrameHandle = null;
+    }
+    ++this.buildToken;
     this.clearCharacter();
     this.clearTextureCache();
 
-    // Dispose renderer
-    this.renderer.dispose();
+    if (this.resizeHandler) {
+      window.removeEventListener('resize', this.resizeHandler);
+      this.resizeHandler = null;
+    }
+    this.controls?.dispose();
+    this.environmentTarget?.dispose();
+    this.environmentTarget = null;
+    this.scene.environment = null;
 
-    // Dispose scene objects
     if (this.gridHelper) {
       Disposer.disposeObject3D(this.gridHelper);
+      this.gridHelper = null;
     }
+
+    this.renderer.dispose();
+    this.renderer.forceContextLoss();
+    this.renderer.domElement.remove();
   }
 
   private async ensurePlayerAnimations(): Promise<THREE.AnimationClip[] | null> {
@@ -2293,11 +2348,18 @@ export class CharacterTestScene {
     }
   }
 
+  private startAnimationLoop(): void {
+    if (this.disposed || !this.isActive || this.animationFrameHandle !== null) return;
+    this.animationFrameHandle = requestAnimationFrame(this.animate);
+  }
+
   private animate = (timestamp?: DOMHighResTimeStamp) => {
-    requestAnimationFrame(this.animate);
+    this.animationFrameHandle = null;
+    if (this.disposed || !this.isActive) return;
+    this.startAnimationLoop();
+
     this.timer.update(timestamp);
     const delta = this.timer.getDelta();
-    if (!this.isActive) return;
 
     const now = performance.now();
     const lightOrbit = now * 0.00025;

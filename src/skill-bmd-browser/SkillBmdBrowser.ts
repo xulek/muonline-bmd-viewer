@@ -1,3 +1,4 @@
+import { escapeHtml } from '../utils/DomSafety';
 // src/skill-bmd-browser/SkillBmdBrowser.ts
 import { parseSkillBmd, type SkillDefinition } from '../skill-bmd';
 
@@ -203,12 +204,12 @@ export class SkillBmdBrowser {
 
             row.innerHTML = [
                 `<td class="bmd-tc bmd-tc--id">${id}</td>`,
-                `<td class="bmd-tc bmd-tc--name">${skill.name}</td>`,
+                `<td class="bmd-tc bmd-tc--name">${escapeHtml(skill.name)}</td>`,
                 `<td class="bmd-tc bmd-tc--dmg">${fmtNum(skill.damage)}</td>`,
                 `<td class="bmd-tc bmd-tc--mana">${fmtNum(skill.manaCost)}</td>`,
                 `<td class="bmd-tc bmd-tc--ag">${fmtNum(skill.abilityCost)}</td>`,
                 `<td class="bmd-tc bmd-tc--lvl">${fmtNum(skill.requiredLevel)}</td>`,
-                `<td class="bmd-tc bmd-tc--type"><span class="skill-type-badge skill-type--${skill.typeLabel.replace(/[^a-z]/gi,'').toLowerCase()}">${skill.typeLabel}</span></td>`,
+                `<td class="bmd-tc bmd-tc--type"><span class="skill-type-badge skill-type--${skill.typeLabel.replace(/[^a-z]/gi,'').toLowerCase()}">${escapeHtml(skill.typeLabel)}</span></td>`,
             ].join('');
 
             row.addEventListener('click', () => {
@@ -242,12 +243,12 @@ export class SkillBmdBrowser {
 
         this.detailEl.innerHTML = `
             <div class="bmd-detail-header">
-                <span class="bmd-detail-name">${s.name}</span>
+                <span class="bmd-detail-name">${escapeHtml(s.name)}</span>
                 <span class="bmd-detail-index">#${s.id}</span>
             </div>
             <div class="bmd-detail-grid">
-                <div class="bmd-detail-field"><span class="bmd-df-label">Type</span><span class="bmd-df-val">${s.typeLabel}</span></div>
-                <div class="bmd-detail-field"><span class="bmd-df-label">Use Type</span><span class="bmd-df-val">${s.skillUseTypeLabel}</span></div>
+                <div class="bmd-detail-field"><span class="bmd-df-label">Type</span><span class="bmd-df-val">${escapeHtml(s.typeLabel)}</span></div>
+                <div class="bmd-detail-field"><span class="bmd-df-label">Use Type</span><span class="bmd-df-val">${escapeHtml(s.skillUseTypeLabel)}</span></div>
                 <div class="bmd-detail-field"><span class="bmd-df-label">Damage</span><span class="bmd-df-val">${fmtNum(s.damage)}</span></div>
                 <div class="bmd-detail-field"><span class="bmd-df-label">Is Damage</span><span class="bmd-df-val">${s.isDamage ? 'Yes' : 'No'}</span></div>
                 <div class="bmd-detail-field"><span class="bmd-df-label">Mana Cost</span><span class="bmd-df-val">${fmtNum(s.manaCost)}</span></div>
@@ -261,7 +262,7 @@ export class SkillBmdBrowser {
                 <div class="bmd-detail-field"><span class="bmd-df-label">Brand</span><span class="bmd-df-val">${s.skillBrand}</span></div>
                 <div class="bmd-detail-field"><span class="bmd-df-label">Item Skill</span><span class="bmd-df-val">${s.itemSkill}</span></div>
                 <div class="bmd-detail-field bmd-detail-field--wide"><span class="bmd-df-label">Requirements</span><span class="bmd-df-val">${req}</span></div>
-                <div class="bmd-detail-field bmd-detail-field--wide"><span class="bmd-df-label">Class Reqs</span><span class="bmd-df-val">${reqClass}</span></div>
+                <div class="bmd-detail-field bmd-detail-field--wide"><span class="bmd-df-label">Class Reqs</span><span class="bmd-df-val">${escapeHtml(reqClass)}</span></div>
             </div>`;
     }
 }

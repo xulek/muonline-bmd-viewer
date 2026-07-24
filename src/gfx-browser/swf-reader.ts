@@ -799,16 +799,21 @@ async function parseBitsJpeg(tag: SwfTag): Promise<ExtractedBitmap | null> {
       canvas.width = w; canvas.height = h;
       const ctx = canvas.getContext('2d');
       if (!ctx) return;
+      const blob = new Blob([jpegData], { type: 'image/jpeg' });
+      const url = URL.createObjectURL(blob);
       try {
-        const blob = new Blob([jpegData], { type: 'image/jpeg' });
-        const url = URL.createObjectURL(blob);
         const img = new Image();
-        await new Promise<void>((res, rej) => {
-          img.onload = () => res(); img.onerror = rej; img.src = url;
+        await new Promise<void>((resolve, reject) => {
+          img.onload = () => resolve();
+          img.onerror = reject;
+          img.src = url;
         });
         ctx.drawImage(img, 0, 0);
+      } catch {
+        // Ignore malformed embedded JPEG data.
+      } finally {
         URL.revokeObjectURL(url);
-      } catch { /* skip on error */ }
+      }
     },
   };
 }

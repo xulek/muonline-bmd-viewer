@@ -12,6 +12,7 @@ import {
     type TerrainMaterialMode,
 } from './TerrainTexturing';
 import { convertOzjToDataUrl } from '../ozj-loader';
+import { logger } from '../utils/Logger';
 
 export interface TerrainResult {
     mesh: THREE.Mesh;
@@ -71,7 +72,7 @@ export class TerrainLoader {
         ]);
 
         // ── DEBUG: MAP data analysis ──
-        this.debugMapData(mapData);
+        if (logger.isDebugEnabled()) this.debugMapData(mapData);
 
         const lightData = lightFile
             ? await lightFile.arrayBuffer().then(readOZB)
@@ -88,7 +89,7 @@ export class TerrainLoader {
         const atlas = buildTextureAtlas(textureMap);
 
         // ── DEBUG: Atlas dump ──
-        this.debugAtlas(atlas, textureMap);
+        if (logger.isDebugEnabled()) this.debugAtlas(atlas, textureMap);
 
         // Build geometry
         const geometry = buildTerrainGeometry(heightData, attData, lightData);
@@ -125,22 +126,22 @@ export class TerrainLoader {
             else if (a === 255) alphaStats.full++;
             else alphaStats.partial++;
         }
-        console.group('[TERRAIN DEBUG] MAP data');
-        console.log('version:', mapData.version, 'mapNumber:', mapData.mapNumber);
-        console.log('layer1 unique indices:', [...l1].sort((a, b) => a - b));
-        console.log('layer2 unique indices:', [...l2].sort((a, b) => a - b));
-        console.log('alpha stats:', alphaStats);
-        console.log('first 20 layer1 values:', Array.from(mapData.layer1.slice(0, 20)));
-        console.log('first 20 layer2 values:', Array.from(mapData.layer2.slice(0, 20)));
-        console.log('first 20 alpha values:', Array.from(mapData.alpha.slice(0, 20)));
-        console.groupEnd();
+        logger.groupDebug('Terrain MAP data');
+        logger.debug('version:', mapData.version, 'mapNumber:', mapData.mapNumber);
+        logger.debug('layer1 unique indices:', [...l1].sort((a, b) => a - b));
+        logger.debug('layer2 unique indices:', [...l2].sort((a, b) => a - b));
+        logger.debug('alpha stats:', alphaStats);
+        logger.debug('first 20 layer1 values:', Array.from(mapData.layer1.slice(0, 20)));
+        logger.debug('first 20 layer2 values:', Array.from(mapData.layer2.slice(0, 20)));
+        logger.debug('first 20 alpha values:', Array.from(mapData.alpha.slice(0, 20)));
+        logger.groupEnd();
     }
 
     private debugAtlas(atlas: ReturnType<typeof buildTextureAtlas>, textureMap: Map<number, THREE.Texture>) {
-        console.group('[TERRAIN DEBUG] Atlas');
-        console.log('atlas grid:', atlas.cols, 'x', atlas.rows, '=', atlas.count, 'cells');
-        console.log('cellSize:', atlas.cellSize, 'tileUvScale:', atlas.tileUvScale);
-        console.log('canvas:', (atlas.texture as any).image?.width, 'x', (atlas.texture as any).image?.height);
+        logger.groupDebug('Terrain atlas');
+        logger.debug('atlas grid:', atlas.cols, 'x', atlas.rows, '=', atlas.count, 'cells');
+        logger.debug('cellSize:', atlas.cellSize, 'tileUvScale:', atlas.tileUvScale);
+        logger.debug('canvas:', (atlas.texture as any).image?.width, 'x', (atlas.texture as any).image?.height);
 
         const loaded: string[] = [];
         const missing: number[] = [];
@@ -151,16 +152,9 @@ export class TerrainLoader {
             loaded.push(`  [${idx}] ${img?.width}x${img?.height}`);
             allIndices.add(idx);
         }
-        console.log('loaded textures (' + textureMap.size + '):\n' + loaded.join('\n'));
-        console.groupEnd();
+        logger.debug('loaded textures (' + textureMap.size + '):\n' + loaded.join('\n'));
+        logger.groupEnd();
 
-        // Expose atlas canvas for visual inspection
-        const canvas = (atlas.texture as any).image;
-        if (canvas instanceof HTMLCanvasElement) {
-            (window as any).__terrainAtlasCanvas = canvas;
-            console.log('[TERRAIN DEBUG] Atlas canvas stored at window.__terrainAtlasCanvas');
-            console.log('[TERRAIN DEBUG] To inspect: document.body.appendChild(window.__terrainAtlasCanvas)');
-        }
     }
 
     private findFile(files: Map<string, File>, pattern: RegExp): File | undefined {
@@ -183,9 +177,9 @@ export class TerrainLoader {
             usedIndices.add(mapData.layer2[i]);
         }
 
-        console.group('[TERRAIN DEBUG] Texture loading');
+        logger.groupDebug('Terrain texture loading');
         const sortedIndices = [...usedIndices].sort((a, b) => a - b);
-        console.log('Need textures for indices:', sortedIndices);
+        logger.debug('Need textures for indices:', sortedIndices);
 
         // Try to load each texture
         for (const idx of sortedIndices) {
@@ -193,10 +187,10 @@ export class TerrainLoader {
             if (tex) {
                 textureMap.set(idx, tex);
             } else {
-                console.warn(`  [${idx}] ⚠ NO TEXTURE FOUND`);
+                logger.warn(`Terrain texture ${idx} was not found.`);
             }
         }
-        console.groupEnd();
+        logger.groupEnd();
 
         return textureMap;
     }
@@ -232,10 +226,10 @@ export class TerrainLoader {
                 try {
                     const tex = await this.loadTextureFile(file);
                     const img = tex.image as { width?: number; height?: number };
-                    console.log(`  [${idx}] ✓ ${file.name} (${img?.width}x${img?.height})`);
+                    logger.debug(`Terrain texture ${idx}: ${file.name} (${img?.width}x${img?.height})`);
                     return tex;
                 } catch (e) {
-                    console.error(`  [${idx}] ✗ ${file.name} DECODE ERROR:`, e);
+                    logger.error(`Terrain texture ${idx} failed to decode: ${file.name}`, e);
                 }
             }
         }
@@ -265,10 +259,16 @@ export class TerrainLoader {
             throw new Error(`Unsupported texture format: ${ext}`);
         }
 
-        const tex = await this.textureLoader.loadAsync(dataUrl);
-        tex.colorSpace = THREE.SRGBColorSpace;
-        tex.wrapS = THREE.RepeatWrapping;
-        tex.wrapT = THREE.RepeatWrapping;
-        return tex;
+        try {
+            const tex = await this.textureLoader.loadAsync(dataUrl);
+            tex.colorSpace = THREE.SRGBColorSpace;
+            tex.wrapS = THREE.RepeatWrapping;
+            tex.wrapT = THREE.RepeatWrapping;
+            return tex;
+        } finally {
+            if (dataUrl.startsWith('blob:')) {
+                URL.revokeObjectURL(dataUrl);
+            }
+        }
     }
 }

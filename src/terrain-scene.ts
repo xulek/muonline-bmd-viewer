@@ -5,6 +5,7 @@ import { TransformControls, type TransformControlsMode } from 'three/examples/js
 import type { ExplorerBookmark, ExplorerVector3, SelectedWorldObjectRef, TerrainSessionState } from './explorer-types';
 import { createId } from './explorer-store';
 import { TerrainLoader } from './terrain/TerrainLoader';
+import { Disposer } from './utils/Disposer';
 import { TerrainAttOverlay } from './terrain/TerrainAttOverlay';
 import {
     loadTerrainObjects,
@@ -132,10 +133,12 @@ export class TerrainScene {
     private applyingTransformControlChange = false;
     private timer = new THREE.Timer();
     private isActive = false;
+    private animationFrameHandle: number | null = null;
     private rendererBackendPreference: TerrainRendererBackendPreference = 'auto';
     private rendererActiveBackend: TerrainRendererBackendActive = 'webgl';
     private rendererReady = false;
     private rendererSwapToken = 0;
+    private worldLoadToken = 0;
     private containerEl: HTMLElement | null = null;
     private ambientLight: THREE.AmbientLight | null = null;
     private sunLight: THREE.DirectionalLight | null = null;
@@ -255,7 +258,7 @@ export class TerrainScene {
         this.initThree();
         this.initUI();
         void this.loadObjectOverrides();
-        this.animate();
+        this.startAnimationLoop();
     }
 
     setActive(active: boolean) {
@@ -266,6 +269,10 @@ export class TerrainScene {
             window.dispatchEvent(new Event('resize'));
             this.scheduleCameraChangedEmit();
             this.minimapNeedsRedraw = true;
+            this.startAnimationLoop();
+        } else if (this.animationFrameHandle !== null) {
+            cancelAnimationFrame(this.animationFrameHandle);
+            this.animationFrameHandle = null;
         }
     }
 
@@ -575,6 +582,7 @@ export class TerrainScene {
     }
 
     private clearWorldScene() {
+        ++this.worldLoadToken;
         if (this.terrainMesh) {
             this.scene.remove(this.terrainMesh);
             this.disposeTerrainObject(this.terrainMesh);
@@ -582,15 +590,21 @@ export class TerrainScene {
         }
         if (this.objectsGroup) {
             this.scene.remove(this.objectsGroup);
+            this.disposeTerrainObject(this.objectsGroup);
             this.objectsGroup = null;
+            this.clearObjectCullingIndex();
         }
         if (this.terrainAttOverlay) {
             this.terrainAttOverlay.setData(null);
         }
         this.objectRecords = [];
         this.animatedObjectInstances = [];
+        this.currentWorldFiles.clear();
+        this.loadedWorldNumber = null;
+        this.loadedAttData = null;
         this.loadedObjectsData = null;
         this.loadedObjFileName = null;
+        this.onAttDataChanged?.(null, null);
         this.selectedObjectRecord = null;
         this.isolatedObjectRecord = null;
         this.updateTransformControlAttachment();
@@ -679,6 +693,9 @@ export class TerrainScene {
 
         if (worldToReload !== null) {
             await this.loadWorld(worldToReload);
+        }
+        if (token !== this.rendererSwapToken) {
+            return;
         }
 
         this.rendererReady = true;
@@ -1041,6 +1058,10 @@ export class TerrainScene {
     private async handleDataSelectElectron() {
         const folderPath = await openDirectoryDialog();
         if (folderPath) {
+            this.clearWorldScene();
+            this.availableWorldNumbers = [];
+            this.worldSelectEl?.replaceChildren();
+            document.getElementById('terrain-world-selector')?.classList.add('initially-hidden');
             this.dataRootPath = folderPath;
             this.dataFiles.clear();
             if (this.statusEl) this.statusEl.textContent = 'Scanning Data folder...';
@@ -1077,6 +1098,10 @@ export class TerrainScene {
     private handleDataFiles(fileList: FileList) {
         if (this.statusEl) this.statusEl.textContent = 'Scanning Data folder...';
 
+        this.clearWorldScene();
+        this.availableWorldNumbers = [];
+        this.worldSelectEl?.replaceChildren();
+        document.getElementById('terrain-world-selector')?.classList.add('initially-hidden');
         this.dataFiles.clear();
         this.dataRootPath = null;
 
@@ -1143,13 +1168,10 @@ export class TerrainScene {
 
     /** Load a specific world by number */
     private async loadWorld(worldNumber: number) {
+        const loadToken = ++this.worldLoadToken;
+        const isCurrent = () => loadToken === this.worldLoadToken;
+
         if (this.statusEl) this.statusEl.textContent = `Loading World ${worldNumber}...`;
-        this.updateStats(0, 0);
-        this.objectRecords = [];
-        this.animatedObjectInstances = [];
-        this.currentWorldFiles.clear();
-        this.loadedObjectsData = null;
-        this.loadedObjFileName = null;
         this.clearSelection();
         this.resetObjectIsolation();
 
@@ -1162,7 +1184,9 @@ export class TerrainScene {
             if (this.statusEl) this.statusEl.textContent = `Loading World ${worldNumber} files from disk...`;
             try {
                 files = await this.loadWorldFilesFromElectron(worldNumber);
+                if (!isCurrent()) return;
             } catch (error) {
+                if (!isCurrent()) return;
                 console.error('Failed to load world files from Electron:', error);
                 const message = (error as Error)?.message || String(error);
                 if (this.statusEl) {
@@ -1176,39 +1200,94 @@ export class TerrainScene {
             }
         }
 
+        if (!isCurrent()) return;
         if (files.size === 0) {
             if (this.statusEl) this.statusEl.textContent = `No files found for World ${worldNumber}.`;
-            this.updateStats(0, 0);
             return;
         }
 
-        this.currentWorldFiles = new Map<string, File>();
+        const normalizedFiles = new Map<string, File>();
         files.forEach((file, key) => {
-            this.currentWorldFiles.set(key.toLowerCase(), file);
+            normalizedFiles.set(key.toLowerCase(), file);
         });
+
+        let pendingTerrain: THREE.Mesh | null = null;
+        let pendingObjects: THREE.Group | null = null;
+        let committed = false;
 
         try {
             const result = await this.terrainLoader.load(files, {
                 materialMode: this.rendererActiveBackend === 'webgpu' ? 'atlas-geometry' : 'shader',
             });
+            pendingTerrain = result.mesh;
 
+            if (!isCurrent()) {
+                this.disposeTerrainObject(result.mesh);
+                pendingTerrain = null;
+                return;
+            }
+
+            let objectResult: TerrainObjectLoadResult | null = null;
+            if (result.objectsData) {
+                if (this.statusEl) this.statusEl.textContent = `World ${result.mapNumber} loaded. Loading objects...`;
+                objectResult = await loadTerrainObjects(
+                    result.objectsData,
+                    files,
+                    result.mapNumber,
+                    (loaded, total) => {
+                        if (isCurrent() && this.statusEl) {
+                            this.statusEl.textContent = `Loading objects: ${loaded}/${total}...`;
+                        }
+                    },
+                    {
+                        animatedInstancingMode: getTerrainAnimatedInstancingModeForBackend(this.rendererActiveBackend),
+                    },
+                );
+                pendingObjects = objectResult.group;
+            }
+
+            if (!isCurrent()) {
+                this.disposeTerrainObject(result.mesh);
+                pendingTerrain = null;
+                if (objectResult) {
+                    this.disposeTerrainObject(objectResult.group);
+                    pendingObjects = null;
+                }
+                return;
+            }
+
+            // Commit the completed world atomically. Old resources stay visible
+            // while the replacement is loading and are released only here.
             if (this.terrainMesh) {
                 this.scene.remove(this.terrainMesh);
                 this.disposeTerrainObject(this.terrainMesh);
             }
             if (this.objectsGroup) {
                 this.scene.remove(this.objectsGroup);
+                this.disposeTerrainObject(this.objectsGroup);
                 this.clearObjectCullingIndex();
             }
 
+            this.currentWorldFiles = normalizedFiles;
             this.terrainMesh = result.mesh;
-            this.scene.add(this.terrainMesh);
-            this.applyTerrainTextureQuality();
-            this.updateStats(this.getTerrainTileCount(result.mesh), result.objectsData?.objects.length ?? 0);
+            pendingTerrain = null;
+            this.objectsGroup = objectResult?.group ?? null;
+            pendingObjects = null;
+            this.objectRecords = objectResult?.records ?? [];
+            this.animatedObjectInstances = objectResult?.animatedInstances ?? [];
             this.loadedWorldNumber = result.mapNumber;
             this.loadedAttData = result.terrainAttributeData;
             this.loadedObjectsData = result.objectsData;
             this.loadedObjFileName = this.findCurrentWorldObjFileName(result.mapNumber);
+            committed = true;
+
+            this.scene.add(this.terrainMesh);
+            if (this.objectsGroup) {
+                this.scene.add(this.objectsGroup);
+            }
+
+            this.applyTerrainTextureQuality();
+            this.updateStats(this.getTerrainTileCount(result.mesh), result.objectsData?.objects.length ?? 0);
             this.updateTerrainAttributePanel(summarizeTerrainAttributeData(result.terrainAttributeData));
             this.onAttDataChanged?.(result.terrainAttributeData, result.mapNumber);
 
@@ -1216,30 +1295,14 @@ export class TerrainScene {
             this.controls.target.set(worldCenter, 0, worldCenter);
             this.camera.position.set(worldCenter, 5000, worldCenter + 5000);
 
-            if (this.statusEl) this.statusEl.textContent = `World ${result.mapNumber} loaded. Loading objects...`;
-
-            if (result.objectsData) {
-                const objectResult: TerrainObjectLoadResult = await loadTerrainObjects(
-                    result.objectsData,
-                    files,
-                    result.mapNumber,
-                    (loaded, total) => {
-                        if (this.statusEl) this.statusEl.textContent = `Loading objects: ${loaded}/${total}...`;
-                    },
-                    {
-                        animatedInstancingMode: getTerrainAnimatedInstancingModeForBackend(this.rendererActiveBackend),
-                    },
-                );
-                this.objectsGroup = objectResult.group;
-                this.objectRecords = objectResult.records;
-                this.animatedObjectInstances = objectResult.animatedInstances;
-                this.scene.add(this.objectsGroup);
+            if (this.objectsGroup) {
                 this.applyPersistedObjectTypeOverridesForWorld(result.mapNumber);
                 this.rebuildObjectCullingIndex();
                 await this.prewarmTerrainObjectResources(this.objectsGroup);
+                if (!isCurrent()) return;
                 void this.prewarmTerrainObjectResourcesBackground(this.objectsGroup);
 
-                if (this.showObjectsEl && this.objectsGroup) {
+                if (this.showObjectsEl) {
                     this.objectsGroup.visible = this.showObjectsEl.checked;
                     if (this.showObjectsEl.checked) {
                         this.updateObjectDistanceCulling(true);
@@ -1247,6 +1310,7 @@ export class TerrainScene {
                 }
             }
 
+            if (!isCurrent()) return;
             this.updateTerrainMaterialState();
             this.buildMinimapSource();
             this.minimapNeedsRedraw = true;
@@ -1257,13 +1321,19 @@ export class TerrainScene {
             this.emitStateChanged();
 
             if (this.statusEl) {
-                const objCount = result.objectsData?.objects.length ?? 0;
-                this.statusEl.textContent = `World ${result.mapNumber} loaded. ${objCount} objects.`;
+                const objectCount = result.objectsData?.objects.length ?? 0;
+                this.statusEl.textContent = `World ${result.mapNumber} loaded. ${objectCount} objects.`;
             }
-        } catch (e) {
-            console.error('Terrain loading error:', e);
-            if (this.statusEl) this.statusEl.textContent = `Error: ${(e as Error).message}`;
-            this.updateStats(0, 0);
+        } catch (error) {
+            if (pendingTerrain) this.disposeTerrainObject(pendingTerrain);
+            if (pendingObjects) this.disposeTerrainObject(pendingObjects);
+            if (!isCurrent()) return;
+
+            console.error('Terrain loading error:', error);
+            if (this.statusEl) this.statusEl.textContent = `Error: ${(error as Error).message}`;
+            if (!committed) {
+                this.updateStats(0, 0);
+            }
         }
     }
 
@@ -2379,36 +2449,7 @@ export class TerrainScene {
     }
 
     private disposeTerrainObject(root: THREE.Object3D) {
-        const disposedMaterials = new Set<THREE.Material>();
-        const disposedTextures = new Set<THREE.Texture>();
-        const minimapGeometry = root.userData.minimapGeometry;
-        if (minimapGeometry instanceof THREE.BufferGeometry) {
-            minimapGeometry.dispose();
-        }
-        root.traverse(object => {
-            const geometry = (object as THREE.Mesh).geometry;
-            if (geometry instanceof THREE.BufferGeometry) {
-                geometry.dispose();
-            }
-
-            const material = (object as THREE.Mesh).material;
-            const materials = Array.isArray(material)
-                ? material
-                : material instanceof THREE.Material
-                    ? [material]
-                    : [];
-            for (const item of materials) {
-                const map = (item as THREE.Material & { map?: THREE.Texture | null }).map;
-                if (map instanceof THREE.Texture && !disposedTextures.has(map)) {
-                    map.dispose();
-                    disposedTextures.add(map);
-                }
-                if (!disposedMaterials.has(item)) {
-                    item.dispose();
-                    disposedMaterials.add(item);
-                }
-            }
-        });
+        Disposer.disposeObject3D(root, false);
     }
 
     private updateStats(tileCount: number, objectCount: number) {
@@ -2948,9 +2989,16 @@ export class TerrainScene {
         return this.dataFiles.size > 0 || this.dataRootPath !== null;
     }
 
+    private startAnimationLoop(): void {
+        if (!this.isActive || this.animationFrameHandle !== null) return;
+        this.animationFrameHandle = requestAnimationFrame(this.animate);
+    }
+
     private animate = (timestamp?: DOMHighResTimeStamp) => {
-        requestAnimationFrame(this.animate);
-        if (!this.isActive || !this.rendererReady) return;
+        this.animationFrameHandle = null;
+        if (!this.isActive) return;
+        this.startAnimationLoop();
+        if (!this.rendererReady) return;
 
         this.timer.update(timestamp);
         const delta = Math.min(this.timer.getDelta(), TERRAIN_MAX_DELTA_SECONDS);

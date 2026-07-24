@@ -1,5 +1,6 @@
 // OZG/OZD file decryption using the existing ModulusCryptor from src/crypto/
 import { decryptModulusCryptor } from '../crypto/modulus-cryptor';
+import { logger } from '../utils/Logger';
 
 export interface OzgResult {
   signature: string; // "FWS", "CWS", "GFX" (uncompressed GFx), or "CFX" (compressed GFx)
@@ -17,17 +18,17 @@ export async function decodeOzg(fileBytes: Uint8Array): Promise<OzgResult> {
   const dv = new DataView(payload.buffer, payload.byteOffset);
   const fileLength = dv.getUint32(4, true);
 
-  console.log(`[decodeOzg] sig="${sig}", version=${swfVersion}, fileLength=${fileLength}, payloadLen=${payload.length}`);
+  logger.debug(`[decodeOzg] sig="${sig}", version=${swfVersion}, fileLength=${fileLength}, payloadLen=${payload.length}`);
 
   let swfBody: Uint8Array;
   if (sig === 'CWS' || sig === 'CFX') {
     const zlibData = payload.slice(8);
-    console.log(`[decodeOzg] Compressed body: ${zlibData.length} bytes, first2=[0x${zlibData[0]?.toString(16)}, 0x${zlibData[1]?.toString(16)}]`);
+    logger.debug(`[decodeOzg] Compressed body: ${zlibData.length} bytes, first2=[0x${zlibData[0]?.toString(16)}, 0x${zlibData[1]?.toString(16)}]`);
     swfBody = await inflateZlib(zlibData);
-    console.log(`[decodeOzg] Decompressed body: ${swfBody.length} bytes, first4=[0x${swfBody[0]?.toString(16)}, 0x${swfBody[1]?.toString(16)}, 0x${swfBody[2]?.toString(16)}, 0x${swfBody[3]?.toString(16)}]`);
+    logger.debug(`[decodeOzg] Decompressed body: ${swfBody.length} bytes, first4=[0x${swfBody[0]?.toString(16)}, 0x${swfBody[1]?.toString(16)}, 0x${swfBody[2]?.toString(16)}, 0x${swfBody[3]?.toString(16)}]`);
   } else if (sig === 'FWS' || sig === 'GFX') {
     swfBody = payload.slice(8);
-    console.log(`[decodeOzg] Uncompressed body: ${swfBody.length} bytes`);
+    logger.debug(`[decodeOzg] Uncompressed body: ${swfBody.length} bytes`);
   } else {
     throw new Error(`Unexpected OZG signature: "${sig}" (expected FWS/CWS or GFX/CFX)`);
   }

@@ -3,6 +3,7 @@ const { app, BrowserWindow, dialog, ipcMain, session } = require('electron');
 const path = require('path');
 const fs = require('fs').promises;
 const { resolveDataFilePath, resolveDataRootFromPaths } = require('./data-root-resolver');
+const { searchTextureFiles } = require('./texture-search');
 
 let mainWindow;
 const missingReadFiles = new Set();
@@ -65,7 +66,7 @@ function createWindow() {
       preload: path.join(__dirname, 'preload.js'),
       contextIsolation: true,
       nodeIntegration: false,
-      // Enable file path in drag & drop events
+      sandbox: true,
       webSecurity: true,
     },
     title: 'MU Online BMD Viewer',
@@ -78,17 +79,32 @@ function createWindow() {
       responseHeaders: {
         ...details.responseHeaders,
         'Content-Security-Policy': [
-          // Removed 'unsafe-eval' for better security
-          // Web Workers still work with blob: URLs
-          "default-src 'self' 'unsafe-inline' blob: data:; " +
-          "script-src 'self' 'unsafe-inline'; " +
+          "default-src 'self'; " +
+          "script-src 'self'; " +
           "worker-src 'self' blob:; " +
           "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; " +
           "font-src 'self' https://fonts.gstatic.com; " +
-          "img-src 'self' data: blob:;"
+          "img-src 'self' data: blob:; " +
+          "media-src 'self' data: blob:; " +
+          "connect-src 'self' http://localhost:5173 ws://localhost:5173; " +
+          "object-src 'none'; base-uri 'self'; frame-src 'none';"
         ]
       }
     });
+  });
+
+
+  mainWindow.webContents.setWindowOpenHandler(() => ({ action: 'deny' }));
+  mainWindow.webContents.on('will-navigate', (event, navigationUrl) => {
+    const currentUrl = mainWindow?.webContents.getURL();
+    if (!currentUrl) return;
+    try {
+      if (new URL(navigationUrl).origin !== new URL(currentUrl).origin) {
+        event.preventDefault();
+      }
+    } catch {
+      event.preventDefault();
+    }
   });
 
   // In development, load from Vite dev server
@@ -292,79 +308,22 @@ ipcMain.handle('fs:readTerrainWorldFiles', async (event, dataRootPath, worldNumb
   }
 });
 
-// Search for textures in directory and subdirectories
+// Search only for the texture names requested by the renderer. A best-effort
+// targeted scan avoids the all-or-nothing failure mode of the removed full
+// Data-tree cache.
 ipcMain.handle('fs:searchTextures', async (event, startPath, requiredTextures) => {
-  const foundTextures = {};
-  const validExtensions = ['.jpg', '.jpeg', '.png', '.tga', '.ozj', '.ozt'];
-  const extensionPriority = ['.ozj', '.ozt', '.tga', '.png', '.jpg', '.jpeg'];
-
-  // Normalize required texture names (remove extension, lowercase)
-  const requiredNames = requiredTextures.map(tex => {
-    const basename = path.basename(tex, path.extname(tex)).toLowerCase();
-    return basename;
-  });
-  const requiredNameSet = new Set(requiredNames);
-
-  async function searchDir(dirPath) {
-    try {
-      const entries = await fs.readdir(dirPath, { withFileTypes: true });
-
-      for (const entry of entries) {
-        const fullPath = path.join(dirPath, entry.name);
-
-        if (entry.isDirectory()) {
-          // Recursively search subdirectories
-          await searchDir(fullPath);
-        } else if (entry.isFile()) {
-          const lowerName = entry.name.toLowerCase();
-          const ext = path.extname(lowerName);
-          if (validExtensions.includes(ext)) {
-            const nameWithoutExt = path.basename(lowerName, ext);
-
-            // Check if this texture is required
-            if (requiredNameSet.has(nameWithoutExt)) {
-              // Add ALL files with matching base name (not just first one)
-              if (!foundTextures[nameWithoutExt]) {
-                foundTextures[nameWithoutExt] = [];
-              }
-              foundTextures[nameWithoutExt].push(fullPath);
-            }
-          }
+  try {
+    return await searchTextureFiles(startPath, requiredTextures, {
+      onDirectoryError: (directoryPath, error) => {
+        if (!isMissingPathError(error) && error?.code !== 'EACCES' && error?.code !== 'EPERM') {
+          console.warn(`[fs:searchTextures] Skipping directory ${directoryPath}:`, error);
         }
-      }
-    } catch (error) {
-      // Ignore permission errors, etc.
-    }
-  }
-
-  await searchDir(startPath);
-
-  const rankExt = (filePath) => {
-    const ext = path.extname(filePath).toLowerCase();
-    const idx = extensionPriority.indexOf(ext);
-    return idx === -1 ? extensionPriority.length : idx;
-  };
-
-  // Sort each list so the preferred extension is first.
-  for (const name of Object.keys(foundTextures)) {
-    foundTextures[name].sort((a, b) => {
-      const rankDiff = rankExt(a) - rankExt(b);
-      if (rankDiff !== 0) return rankDiff;
-      return a.localeCompare(b);
+      },
     });
+  } catch (error) {
+    console.warn(`[fs:searchTextures] Failed to scan ${startPath}:`, error);
+    return {};
   }
-
-  console.log(`[Texture Search] Found ${Object.keys(foundTextures).length}/${requiredNames.length} texture names (${Object.values(foundTextures).reduce((sum, arr) => sum + arr.length, 0)} files total)`);
-  if (requiredNames.length <= 3) {
-    for (const name of requiredNames) {
-      const matches = foundTextures[name];
-      if (matches && matches.length > 0) {
-        console.log(`[Texture Search] Resolved ${name} -> ${matches[0]} (${matches.length} match${matches.length === 1 ? '' : 'es'})`);
-      }
-    }
-  }
-
-  return foundTextures;
 });
 
 ipcMain.handle('fs:readTerrainObjectOverrides', async () => {
@@ -440,6 +399,10 @@ ipcMain.handle('fs:writeFileInDirectory', async (event, rootPath, relativePath, 
         path: null,
         error: 'Invalid export data.',
       };
+    }
+
+    if (bytes.byteLength > 256 * 1024 * 1024) {
+      return { path: null, error: 'Export data is too large.' };
     }
 
     await fs.mkdir(path.dirname(target), { recursive: true });

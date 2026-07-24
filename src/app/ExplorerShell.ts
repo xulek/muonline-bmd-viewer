@@ -158,6 +158,17 @@ export function initExplorerShell({
         return button;
     }
 
+    function createExplorerLabel(primaryText: string, metaText: string): HTMLDivElement {
+        const label = document.createElement('div');
+        label.className = 'explorer-item-label';
+        label.appendChild(document.createTextNode(primaryText));
+        const meta = document.createElement('span');
+        meta.className = 'explorer-item-meta';
+        meta.textContent = metaText;
+        label.appendChild(meta);
+        return label;
+    }
+
     function matchesExplorerSearch(label: string, meta = ''): boolean {
         const query = explorerSearch.trim().toLowerCase();
         if (!query) return true;
@@ -283,12 +294,10 @@ export function initExplorerShell({
                 const recentEntry = state.recentBookmarks.find(entry => entry.bookmarkId === bookmark.id);
                 const item = document.createElement('div');
                 item.className = 'explorer-item';
-                const label = document.createElement('div');
-                label.className = 'explorer-item-label';
-                label.innerHTML = recentEntry
-                    ? `${bookmark.name}<span class="explorer-item-meta">World ${bookmark.worldNumber} • Recent ${formatRelativeTime(recentEntry.timestamp)}</span>`
-                    : `${bookmark.name}<span class="explorer-item-meta">World ${bookmark.worldNumber}</span>`;
-                item.appendChild(label);
+                const metaText = recentEntry
+                    ? `World ${bookmark.worldNumber} • Recent ${formatRelativeTime(recentEntry.timestamp)}`
+                    : `World ${bookmark.worldNumber}`;
+                item.appendChild(createExplorerLabel(bookmark.name, metaText));
                 item.appendChild(createActionButton('Open', () => { void openBookmark(bookmark); }));
                 item.appendChild(createActionButton('Rename', () => {
                     const name = window.prompt('Rename bookmark', bookmark.name)?.trim();
@@ -306,10 +315,10 @@ export function initExplorerShell({
             .map(preset => {
                 const item = document.createElement('div');
                 item.className = 'explorer-item';
-                const label = document.createElement('div');
-                label.className = 'explorer-item-label';
-                label.innerHTML = `${preset.pinned ? '★ ' : ''}${preset.name}<span class="explorer-item-meta">Class ${preset.classValue}</span>`;
-                item.appendChild(label);
+                item.appendChild(createExplorerLabel(
+                    `${preset.pinned ? '★ ' : ''}${preset.name}`,
+                    `Class ${preset.classValue}`,
+                ));
                 item.appendChild(createActionButton('Apply', () => {
                     switchToView('character');
                     characterScene.applyCharacterPreset(preset);
@@ -328,10 +337,10 @@ export function initExplorerShell({
             .map(entry => {
                 const item = document.createElement('div');
                 item.className = 'explorer-item';
-                const label = document.createElement('div');
-                label.className = 'explorer-item-label';
-                label.innerHTML = `${entry.label}<span class="explorer-item-meta">${entry.modelFileKey || 'Transient file'}</span>`;
-                item.appendChild(label);
+                item.appendChild(createExplorerLabel(
+                    entry.label,
+                    entry.modelFileKey || 'Transient file',
+                ));
                 item.appendChild(createActionButton('Open', () => { void openRecentModel(entry); }));
                 return item;
             });

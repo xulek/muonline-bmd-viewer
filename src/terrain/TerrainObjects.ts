@@ -20,6 +20,7 @@ import {
 } from './TerrainAnimationUtils';
 import type { OBJData, MapObject } from './formats/OBJReader';
 import { TERRAIN_WORLD_SIZE } from './TerrainMesh';
+import { logger } from '../utils/Logger';
 import {
     applyBlendModeToMaterial,
     detectBlendModeFromTexture,
@@ -228,9 +229,9 @@ export async function loadTerrainObjects(
         byType.set(obj.type, list);
     }
 
-    console.group('[TERRAIN OBJECTS] Loading');
-    console.log(`OBJ data: ${objData.objects.length} objects, ${byType.size} unique types`);
-    console.log('Types:', [...byType.keys()].sort((a, b) => a - b).join(', '));
+    logger.groupDebug('Terrain objects loading');
+    logger.debug(`OBJ data: ${objData.objects.length} objects, ${byType.size} unique types`);
+    logger.debug('Types:', [...byType.keys()].sort((a, b) => a - b).join(', '));
 
     let loaded = 0;
     const total = byType.size;
@@ -349,8 +350,8 @@ export async function loadTerrainObjects(
         onProgress?.(loaded, total);
     }
 
-    console.log(`BMDs found: ${foundCount}, missing: ${missingCount}`);
-    console.groupEnd();
+    logger.debug(`BMDs found: ${foundCount}, missing: ${missingCount}`);
+    logger.groupEnd();
 
     return { group, records, animatedInstances };
 }

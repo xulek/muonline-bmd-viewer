@@ -1,3 +1,4 @@
+import { escapeHtml } from '../utils/DomSafety';
 // src/item-bmd-browser/ItemBmdBrowser.ts
 import { parseItemBmd, type ItemDefinition } from '../item-bmd';
 
@@ -212,7 +213,7 @@ export class ItemBmdBrowser {
 
             row.innerHTML = [
                 `<td class="bmd-tc bmd-tc--id">${item.index}</td>`,
-                `<td class="bmd-tc bmd-tc--name">${item.itemName || '<em>—</em>'}</td>`,
+                `<td class="bmd-tc bmd-tc--name">${item.itemName ? escapeHtml(item.itemName) : '<em>—</em>'}</td>`,
                 `<td class="bmd-tc bmd-tc--kind">${kindLabel(item.kindA)}</td>`,
                 `<td class="bmd-tc bmd-tc--size">${item.width}×${item.height}</td>`,
                 `<td class="bmd-tc bmd-tc--dmg">${fmtDmg(item)}</td>`,
@@ -251,11 +252,11 @@ export class ItemBmdBrowser {
 
         this.detailEl.innerHTML = `
             <div class="bmd-detail-header">
-                <span class="bmd-detail-name">${d.itemName || '(unnamed)'}</span>
+                <span class="bmd-detail-name">${escapeHtml(d.itemName || '(unnamed)')}</span>
                 <span class="bmd-detail-index">#${d.index}</span>
             </div>
             <div class="bmd-detail-grid">
-                <div class="bmd-detail-field"><span class="bmd-df-label">Model</span><span class="bmd-df-val">${d.modelPath || '—'}</span></div>
+                <div class="bmd-detail-field"><span class="bmd-df-label">Model</span><span class="bmd-df-val">${escapeHtml(d.modelPath || '—')}</span></div>
                 <div class="bmd-detail-field"><span class="bmd-df-label">Group / ID</span><span class="bmd-df-val">${groupId}</span></div>
                 <div class="bmd-detail-field"><span class="bmd-df-label">Kind A / B</span><span class="bmd-df-val">${d.kindA} / ${d.kindB}</span></div>
                 <div class="bmd-detail-field"><span class="bmd-df-label">Type</span><span class="bmd-df-val">${d.type}</span></div>

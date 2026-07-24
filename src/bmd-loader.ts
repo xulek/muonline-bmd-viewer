@@ -10,6 +10,7 @@ import { decodeTga } from '@lunapaint/tga-codec';
 import { createLea256EcbDecrypt } from './crypto/lea256';
 import { decryptFileCryptor } from './crypto/file-cryptor';
 import { readStructArray, StructLayout } from './BinaryStruct';
+import { logger } from './utils/Logger';
 
 //----------------------------------------------------------
 //  Structure Definitions
@@ -144,14 +145,14 @@ function safeReadStruct<T>(view: DataView, layout: StructLayout, offset: number,
 //----------------------------------------------------------
 export class BMDLoader {
     public async load(bmdBuffer: ArrayBuffer): Promise<{ group: THREE.Group; requiredTextures: string[] }> {
-        console.groupCollapsed('%cBMDLoader.load', 'color:lime;font-weight:bold');
-        console.time('BMDLoader.load total');
+        logger.groupDebug('BMDLoader.load');
+        logger.time('BMDLoader.load total');
 
         const bmd = this.parse(bmdBuffer);
-        console.log('Parsed BMD:', bmd);
+        logger.debug('Parsed BMD summary', { name: bmd.name, meshes: bmd.meshes.length, bones: bmd.bones.length, actions: bmd.actions.length });
 
         const requiredTextures = [...new Set(bmd.meshes.map(m => m.texturePath))];
-        console.log('Required textures:', requiredTextures);
+        logger.debug('Required textures', requiredTextures);
         
         const group = new THREE.Group();
         group.name  = bmd.name;
@@ -254,8 +255,8 @@ export class BMDLoader {
         
         group.rotation.x = -Math.PI / 2;
 
-        console.timeEnd('BMDLoader.load total');
-        console.groupEnd();
+        logger.timeEnd('BMDLoader.load total');
+        logger.groupEnd();
 
         return { group, requiredTextures };
     }
@@ -281,193 +282,227 @@ export class BMDLoader {
      *  per bone (skipping remaining frames/actions), giving correct bind-pose positions
      *  with minimal overhead. */
     public parse(buffer: ArrayBuffer, options?: { meshesOnly?: boolean; bindPoseOnly?: boolean }): BMD {
-        console.groupCollapsed('parse()');
-        console.log(`Buffer size: ${buffer.byteLength} bytes`);
+        const MAX_FILE_SIZE = 512 * 1024 * 1024;
+        const MAX_MESHES = 4096;
+        const MAX_BONES = 4096;
+        const MAX_ACTIONS = 4096;
+        const MAX_MESH_ELEMENTS = 1_000_000;
+        const MAX_ANIMATION_KEYS = 100_000;
 
-        const work = buffer.slice(0);
-        const view = new DataView(work);
-
-        const id = new TextDecoder('ascii').decode(work.slice(0, 3));
-        if (id !== 'BMD') throw new Error('Invalid BMD header');
-
-        const version = view.getUint8(3);
-        console.log(`BMD version: ${version}`);
-
-        let dataOffset = 4;
-        if (version === 12 || version === 15) {
-          const size = view.getInt32(4, true);
-          const enc  = new Uint8Array(work, 8, size);
-          const dec  = version === 12 ? decryptFileCryptor(enc) : decryptLea(enc);
-          new Uint8Array(work, 8, size).set(dec);
-          dataOffset = 8;
-          console.log(`Decrypted ${size} B @8`);
+        if (!(buffer instanceof ArrayBuffer) || buffer.byteLength < 4) {
+          throw new Error('BMD file is too small.');
+        }
+        if (buffer.byteLength > MAX_FILE_SIZE) {
+          throw new Error(`BMD file exceeds the ${MAX_FILE_SIZE / 1024 / 1024} MB safety limit.`);
         }
 
+        const headerView = new DataView(buffer);
+        const id = new TextDecoder('ascii').decode(new Uint8Array(buffer, 0, 3));
+        if (id !== 'BMD') throw new Error('Invalid BMD header');
+
+        const version = headerView.getUint8(3);
+        let work = buffer;
+        let dataOffset = 4;
+        if (version === 12 || version === 15) {
+          if (buffer.byteLength < 8) throw new Error('Encrypted BMD header is truncated.');
+          const encryptedSize = headerView.getInt32(4, true);
+          if (encryptedSize < 0 || encryptedSize > buffer.byteLength - 8) {
+            throw new Error(`Invalid encrypted BMD payload size: ${encryptedSize}.`);
+          }
+
+          work = buffer.slice(0);
+          const encrypted = new Uint8Array(work, 8, encryptedSize);
+          const decrypted = version === 12 ? decryptFileCryptor(encrypted) : decryptLea(encrypted);
+          if (decrypted.byteLength !== encryptedSize) {
+            throw new Error('Decrypted BMD payload has an unexpected size.');
+          }
+          encrypted.set(decrypted);
+          dataOffset = 8;
+        }
+
+        const view = new DataView(work);
         let off = dataOffset;
-        const readS16 = () => { const v = view.getInt16 (off, true); off += 2; return v; };
-        const readU16 = () => { const v = view.getUint16(off, true); off += 2; return v; };
-        const readF32 = () => { const v = view.getFloat32(off, true); off += 4; return v; };
+        const ensure = (byteCount: number, label: string) => {
+          if (!Number.isSafeInteger(byteCount) || byteCount < 0 || off + byteCount > view.byteLength) {
+            throw new Error(`Truncated BMD while reading ${label} at offset ${off}.`);
+          }
+        };
+        const readS16 = () => { ensure(2, 'int16'); const value = view.getInt16(off, true); off += 2; return value; };
+        const readU16 = () => { ensure(2, 'uint16'); const value = view.getUint16(off, true); off += 2; return value; };
+        const readU8 = () => { ensure(1, 'uint8'); const value = view.getUint8(off); off += 1; return value; };
+        const readF32 = () => { ensure(4, 'float32'); const value = view.getFloat32(off, true); off += 4; return value; };
+        const readString = (length: number, label: string) => {
+          ensure(length, label);
+          const value = this.readStringFromDataView(view, off, length);
+          off += length;
+          return value;
+        };
+        const assertCount = (value: number, maximum: number, label: string) => {
+          if (!Number.isInteger(value) || value < 0 || value > maximum) {
+            throw new Error(`Invalid ${label} count: ${value}.`);
+          }
+          return value;
+        };
 
-        const name        = this.readStringFromDataView(view, off, 32); off += 32;
-        const meshCount   = readU16();
-        const boneCount   = readU16();
-        const actionCount = readU16();
-        console.log(`Counts – Meshes:${meshCount}, Bones:${boneCount}, Actions:${actionCount}`);
-
+        const name = readString(32, 'model name');
+        const meshCount = assertCount(readU16(), MAX_MESHES, 'mesh');
+        const boneCount = assertCount(readU16(), MAX_BONES, 'bone');
+        const actionCount = assertCount(readU16(), MAX_ACTIONS, 'action');
         const bmd: BMD = { version, name, meshes: [], bones: [], actions: [] };
 
-        for (let m = 0; m < meshCount; m++) {
-          console.log(`Reading mesh ${m + 1}/${meshCount} at offset ${off}`);
-
-          const numVertices  = readS16();
-          const numNormals   = readS16();
-          const numTexCoords = readS16();
-          const numTriangles = readS16();
+        for (let meshIndex = 0; meshIndex < meshCount; meshIndex++) {
+          const numVertices = assertCount(readS16(), MAX_MESH_ELEMENTS, `mesh ${meshIndex} vertex`);
+          const numNormals = assertCount(readS16(), MAX_MESH_ELEMENTS, `mesh ${meshIndex} normal`);
+          const numTexCoords = assertCount(readS16(), MAX_MESH_ELEMENTS, `mesh ${meshIndex} texcoord`);
+          const numTriangles = assertCount(readS16(), MAX_MESH_ELEMENTS, `mesh ${meshIndex} triangle`);
           const textureIndex = readS16();
 
-          console.log(`Mesh ${m}: v=${numVertices}, n=${numNormals}, t=${numTexCoords}, tri=${numTriangles}`);
-
-          const vertsRes = readStructArray<{node:number,x:number,y:number,z:number}>(
-            view, BMDTextureVertexLayout, off, numVertices);
-          if (!vertsRes) {
-              console.error(`Failed to read vertices for mesh ${m}`);
-              continue;
-          }
-          off = vertsRes.newOffset;
-          const vertices = vertsRes.data.map(v => ({ node:v.node, position:{ x:v.x, y:v.y, z:v.z } }));
-
-          const normsRes = readStructArray<{node:number,nx:number,ny:number,nz:number,bindVertex:number}>(
-            view, BMDTextureNormalLayout, off, numNormals);
-          if (!normsRes) {
-              console.error(`Failed to read normals for mesh ${m}`);
-              continue;
-          }
-          off = normsRes.newOffset;
-          const normals = normsRes.data.map(n => ({
-            node:n.node,
-            normal:{ x:n.nx, y:n.ny, z:n.nz },
-            bindVertex:n.bindVertex
+          const verticesResult = readStructArray<{ node: number; x: number; y: number; z: number }>(
+            view,
+            BMDTextureVertexLayout,
+            off,
+            numVertices,
+          );
+          if (!verticesResult) throw new Error(`Invalid vertex data for mesh ${meshIndex}.`);
+          off = verticesResult.newOffset;
+          const vertices = verticesResult.data.map(vertex => ({
+            node: vertex.node,
+            position: { x: vertex.x, y: vertex.y, z: vertex.z },
           }));
 
-          const texRes = readStructArray<BMDTexCoord>(view, BMDTexCoordLayout, off, numTexCoords);
-          if (!texRes) {
-              console.error(`Failed to read texCoords for mesh ${m}`);
-              continue;
-          }
-          off = texRes.newOffset;
-          const texCoords = texRes.data;
+          const normalsResult = readStructArray<{ node: number; nx: number; ny: number; nz: number; bindVertex: number }>(
+            view,
+            BMDTextureNormalLayout,
+            off,
+            numNormals,
+          );
+          if (!normalsResult) throw new Error(`Invalid normal data for mesh ${meshIndex}.`);
+          off = normalsResult.newOffset;
+          const normals = normalsResult.data.map(normal => ({
+            node: normal.node,
+            normal: { x: normal.nx, y: normal.ny, z: normal.nz },
+            bindVertex: normal.bindVertex,
+          }));
 
+          const texCoordsResult = readStructArray<BMDTexCoord>(view, BMDTexCoordLayout, off, numTexCoords);
+          if (!texCoordsResult) throw new Error(`Invalid texture-coordinate data for mesh ${meshIndex}.`);
+          off = texCoordsResult.newOffset;
+
+          const triangleStride = 64;
+          ensure(numTriangles * triangleStride, `mesh ${meshIndex} triangles`);
           const triangles: BMDTriangle[] = [];
-          const triStride = 64;
-          for (let t = 0; t < numTriangles; t++) {
-            const start = off;
+          for (let triangleIndex = 0; triangleIndex < numTriangles; triangleIndex++) {
+            const triangleOffset = off;
+            const polygon = view.getUint8(triangleOffset);
+            if (polygon !== 3 && polygon !== 4) {
+              throw new Error(`Invalid polygon size ${polygon} in mesh ${meshIndex}, triangle ${triangleIndex}.`);
+            }
             triangles.push({
-              polygon      : view.getUint8(start),
-              vertexIndex  : [0,1,2,3].map(i => view.getInt16(start +  2 + i*2, true)),
-              normalIndex  : [0,1,2,3].map(i => view.getInt16(start + 10 + i*2, true)),
-              texCoordIndex: [0,1,2,3].map(i => view.getInt16(start + 18 + i*2, true)),
-              lightMapCoord  : [],
-              lightMapIndexes: 0
+              polygon,
+              vertexIndex: [0, 1, 2, 3].map(index => view.getInt16(triangleOffset + 2 + index * 2, true)),
+              normalIndex: [0, 1, 2, 3].map(index => view.getInt16(triangleOffset + 10 + index * 2, true)),
+              texCoordIndex: [0, 1, 2, 3].map(index => view.getInt16(triangleOffset + 18 + index * 2, true)),
+              lightMapCoord: [],
+              lightMapIndexes: 0,
             });
-            off += triStride;
+            off += triangleStride;
           }
 
-          const texturePath = this.readStringFromDataView(view, off, 32); off += 32;
-
+          const texturePath = readString(32, `mesh ${meshIndex} texture path`);
           bmd.meshes.push({
-            texture:textureIndex,
-            numVertices, numNormals, numTexCoords, numTriangles,
-            vertices, normals, texCoords, triangles, texturePath
+            texture: textureIndex,
+            numVertices,
+            numNormals,
+            numTexCoords,
+            numTriangles,
+            vertices,
+            normals,
+            texCoords: texCoordsResult.data,
+            triangles,
+            texturePath,
           });
         }
 
-        if (options?.meshesOnly) {
-            console.log(`Parse completed (meshes only). ${bmd.meshes.length} meshes read.`);
-            console.groupEnd();
-            return bmd;
-        }
+        if (options?.meshesOnly) return bmd;
 
-        for (let a = 0; a < actionCount; a++) {
-          const numKeys  = readS16();
-          const lockPos  = view.getUint8(off) > 0; off += 1;
-          bmd.actions.push({ numAnimationKeys:numKeys, lockPositions:lockPos, positions:[] });
-
-          if (lockPos) {
-            for (let k = 0; k < numKeys; k++) {
-              const pos = { x: readF32(), y: readF32(), z: readF32() };
-              bmd.actions[a].positions!.push(pos);
+        for (let actionIndex = 0; actionIndex < actionCount; actionIndex++) {
+          const numKeys = assertCount(readS16(), MAX_ANIMATION_KEYS, `action ${actionIndex} key`);
+          const lockPositions = readU8() > 0;
+          const action: BMDTextureAction = {
+            numAnimationKeys: numKeys,
+            lockPositions,
+            positions: [],
+          };
+          if (lockPositions) {
+            ensure(numKeys * 12, `action ${actionIndex} locked positions`);
+            for (let keyIndex = 0; keyIndex < numKeys; keyIndex++) {
+              action.positions!.push({ x: readF32(), y: readF32(), z: readF32() });
             }
           }
+          bmd.actions.push(action);
         }
 
-        for (let b = 0; b < boneCount; b++) {
-          const isDummy = view.getUint8(off) > 0; off += 1;
-
+        for (let boneIndex = 0; boneIndex < boneCount; boneIndex++) {
+          const isDummy = readU8() > 0;
           if (isDummy) {
-            bmd.bones.push({ name:`dummy_${b}`, parent:-1, isDummy:true, matrixes:[] });
+            bmd.bones.push({ name: `dummy_${boneIndex}`, parent: -1, isDummy: true, matrixes: [] });
             continue;
           }
 
-          const boneName = this.readStringFromDataView(view, off, 32); off += 32;
-          const parent   = readS16();
-          const bone: BMDTextureBone = { name:boneName, parent, isDummy:false, matrixes:[] };
+          const boneName = readString(32, `bone ${boneIndex} name`);
+          const parent = readS16();
+          if (parent < -1 || parent >= boneCount) {
+            throw new Error(`Invalid parent index ${parent} for bone ${boneIndex}.`);
+          }
+          const bone: BMDTextureBone = { name: boneName, parent, isDummy: false, matrixes: [] };
 
-          for (let a = 0; a < actionCount; a++) {
-            const act   = bmd.actions[a];
-            const keys  = act.numAnimationKeys;
-
+          for (let actionIndex = 0; actionIndex < actionCount; actionIndex++) {
+            const keys = bmd.actions[actionIndex].numAnimationKeys;
             if (keys === 0) {
               bone.matrixes.push({
-                position  : [{ x:0, y:0, z:0 }],
-                rotation  : [{ x:0, y:0, z:0 }],
-                quaternion: [{ x:0, y:0, z:0, w:1 }]
+                position: [{ x: 0, y: 0, z: 0 }],
+                rotation: [{ x: 0, y: 0, z: 0 }],
+                quaternion: [{ x: 0, y: 0, z: 0, w: 1 }],
               });
               continue;
             }
 
-            // bindPoseOnly: for action 0 read only key 0 and skip the rest;
-            // for all other actions skip everything (12 bytes/float3 × 2 arrays × keys).
+            ensure(keys * 24, `bone ${boneIndex}, action ${actionIndex} animation data`);
             if (options?.bindPoseOnly) {
-              if (a === 0) {
-                const pos0 = { x: readF32(), y: readF32(), z: readF32() };
-                off += (keys - 1) * 12;                 // skip remaining position keys
-                const rot0 = { x: readF32(), y: readF32(), z: readF32() };
-                off += (keys - 1) * 12;                 // skip remaining rotation keys
-                const q = bmdAngleToQuaternion(rot0);
+              if (actionIndex === 0) {
+                const position = { x: readF32(), y: readF32(), z: readF32() };
+                off += (keys - 1) * 12;
+                const rotation = { x: readF32(), y: readF32(), z: readF32() };
+                off += (keys - 1) * 12;
+                const quaternion = bmdAngleToQuaternion(rotation);
                 bone.matrixes.push({
-                  position  : [pos0],
-                  rotation  : [rot0],
-                  quaternion: [{ x:q.x, y:q.y, z:q.z, w:q.w }],
+                  position: [position],
+                  rotation: [rotation],
+                  quaternion: [{ x: quaternion.x, y: quaternion.y, z: quaternion.z, w: quaternion.w }],
                 });
               } else {
-                off += keys * 12 * 2;                   // skip positions + rotations
+                off += keys * 24;
               }
               continue;
             }
 
-            const mat: BMDBoneMatrix = { position:[], rotation:[], quaternion:[] };
-
-            for (let k = 0; k < keys; k++) {
-              mat.position.push({ x: readF32(), y: readF32(), z: readF32() });
+            const matrix: BMDBoneMatrix = { position: [], rotation: [], quaternion: [] };
+            for (let keyIndex = 0; keyIndex < keys; keyIndex++) {
+              matrix.position.push({ x: readF32(), y: readF32(), z: readF32() });
             }
-
-            for (let k = 0; k < keys; k++) {
-              mat.rotation.push({ x: readF32(), y: readF32(), z: readF32() });
+            for (let keyIndex = 0; keyIndex < keys; keyIndex++) {
+              matrix.rotation.push({ x: readF32(), y: readF32(), z: readF32() });
             }
-
-            mat.rotation.forEach(r => {
-              const q = bmdAngleToQuaternion(r);
-              mat.quaternion.push({ x:q.x, y:q.y, z:q.z, w:q.w });
+            matrix.rotation.forEach(rotation => {
+              const quaternion = bmdAngleToQuaternion(rotation);
+              matrix.quaternion.push({ x: quaternion.x, y: quaternion.y, z: quaternion.z, w: quaternion.w });
             });
-
-            bone.matrixes.push(mat);
+            bone.matrixes.push(matrix);
           }
 
           bmd.bones.push(bone);
         }
 
-        console.log(`Parse completed. Final offset: ${off}/${work.byteLength}`);
-        console.groupEnd();
         return bmd;
     }
 
