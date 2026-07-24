@@ -1,18 +1,21 @@
 import { logger, LogLevel } from '../src/utils/Logger';
 
 describe('Logger', () => {
-  let consoleLogSpy: jest.SpyInstance;
+  let consoleDebugSpy: jest.SpyInstance;
+  let consoleInfoSpy: jest.SpyInstance;
   let consoleWarnSpy: jest.SpyInstance;
   let consoleErrorSpy: jest.SpyInstance;
 
   beforeEach(() => {
-    consoleLogSpy = jest.spyOn(console, 'log').mockImplementation();
+    consoleDebugSpy = jest.spyOn(console, 'debug').mockImplementation();
+    consoleInfoSpy = jest.spyOn(console, 'info').mockImplementation();
     consoleWarnSpy = jest.spyOn(console, 'warn').mockImplementation();
     consoleErrorSpy = jest.spyOn(console, 'error').mockImplementation();
   });
 
   afterEach(() => {
-    consoleLogSpy.mockRestore();
+    consoleDebugSpy.mockRestore();
+    consoleInfoSpy.mockRestore();
     consoleWarnSpy.mockRestore();
     consoleErrorSpy.mockRestore();
   });
@@ -26,7 +29,8 @@ describe('Logger', () => {
       logger.warn('warn message');
       logger.error('error message');
 
-      expect(consoleLogSpy).not.toHaveBeenCalled();
+      expect(consoleDebugSpy).not.toHaveBeenCalled();
+      expect(consoleInfoSpy).not.toHaveBeenCalled();
       expect(consoleWarnSpy).toHaveBeenCalledWith('[WARN]', 'warn message');
       expect(consoleErrorSpy).toHaveBeenCalledWith('[ERROR]', 'error message');
     });
@@ -47,7 +51,8 @@ describe('Logger', () => {
       logger.warn('warn');
       logger.error('error');
 
-      expect(consoleLogSpy).not.toHaveBeenCalled();
+      expect(consoleDebugSpy).not.toHaveBeenCalled();
+      expect(consoleInfoSpy).not.toHaveBeenCalled();
       expect(consoleWarnSpy).not.toHaveBeenCalled();
       expect(consoleErrorSpy).not.toHaveBeenCalled();
     });
@@ -60,12 +65,12 @@ describe('Logger', () => {
 
     it('should format debug logs correctly', () => {
       logger.debug('test message', 123);
-      expect(consoleLogSpy).toHaveBeenCalledWith('[DEBUG]', 'test message', 123);
+      expect(consoleDebugSpy).toHaveBeenCalledWith('[DEBUG]', 'test message', 123);
     });
 
     it('should format info logs correctly', () => {
       logger.info('test message', { key: 'value' });
-      expect(consoleLogSpy).toHaveBeenCalledWith('[INFO]', 'test message', { key: 'value' });
+      expect(consoleInfoSpy).toHaveBeenCalledWith('[INFO]', 'test message', { key: 'value' });
     });
 
     it('should format warn logs correctly', () => {

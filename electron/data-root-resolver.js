@@ -158,17 +158,6 @@ async function resolveDataFilePath(dataRootPath, relativePath) {
     return null;
   }
 
-  try {
-    const directStats = await fs.stat(directPath);
-    if (directStats.isFile()) {
-      return directPath;
-    }
-  } catch (error) {
-    if (!isMissingPathError(error) && error?.code !== 'EACCES' && error?.code !== 'EPERM') {
-      throw error;
-    }
-  }
-
   let currentPath = resolvedRootPath;
   for (let index = 0; index < segments.length; index += 1) {
     const expectedType = index === segments.length - 1 ? 'file' : 'directory';
